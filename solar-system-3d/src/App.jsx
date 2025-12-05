@@ -32,8 +32,9 @@ function App() {
         }}
       >
         <color attach="background" args={['#000000']} />
-        <ambientLight intensity={0.1} />
-        <pointLight position={[0, 0, 0]} intensity={2} color="#ffaa00" distance={0} decay={0} />
+        <ambientLight intensity={0.05} /> {/* Reduced ambient for more contrast */}
+        <pointLight position={[0, 0, 0]} intensity={3} color="#ffaa00" distance={0} decay={0} /> {/* Sun light */}
+        <spotLight position={[50, 50, 50]} angle={0.5} penumbra={1} intensity={1} color="#ffffff" /> {/* Rim light */}
         
         <Suspense fallback={null}>
           <SolarSystem onSelect={setSelectedAsteroid} />
