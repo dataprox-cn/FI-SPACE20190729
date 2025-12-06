@@ -5,6 +5,7 @@ import FilterLegend from './ui/FilterLegend'
 import TimeControls from './ui/TimeControls'
 import SearchBar from './ui/SearchBar'
 import SystemInfo from './ui/SystemInfo'
+import AudioPlayer from './ui/AudioPlayer'
 
 const HUD = ({ selected, onDeselect, asteroidCount, quality, setQuality }) => {
   const [fps, setFps] = useState(0)
@@ -60,7 +61,9 @@ const HUD = ({ selected, onDeselect, asteroidCount, quality, setQuality }) => {
         meta={{}} // Pass metadata if available
       />
 
-      <div style={{ position: 'absolute', bottom: '80px', left: '20px', zIndex: 10 }}>
+      <AudioPlayer />
+      
+      <div style={{ position: 'absolute', bottom: '150px', left: '20px', zIndex: 10 }}>
         <button 
           onClick={() => setQuality(quality === 'high' ? 'low' : 'high')}
           style={{

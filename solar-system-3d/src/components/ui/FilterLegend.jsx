@@ -76,3 +76,4 @@ const FilterLegend = ({ meta, activeFilters, onToggleFilter }) => {
 
 export default FilterLegend
 
+

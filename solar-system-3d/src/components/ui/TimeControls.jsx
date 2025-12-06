@@ -59,3 +59,4 @@ const TimeControls = ({ speed, setSpeed, isPaused, setIsPaused }) => {
 
 export default TimeControls
 
+

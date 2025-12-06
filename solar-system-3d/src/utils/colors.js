@@ -45,3 +45,4 @@ export const ASTEROID_COLORS = {
   'default': '#706353'
 };
 
+
