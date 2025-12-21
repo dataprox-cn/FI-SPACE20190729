@@ -25,7 +25,7 @@ const SearchBar = ({ onSearch }) => {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search asteroids..."
+            placeholder="Search planets, asteroids, or classes..."
             style={{
               background: 'transparent',
               border: 'none',
@@ -43,5 +43,12 @@ const SearchBar = ({ onSearch }) => {
 }
 
 export default SearchBar
+
+
+
+
+
+
+
 
 

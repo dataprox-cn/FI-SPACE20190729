@@ -50,3 +50,10 @@ const Statistics = ({ count, fps }) => {
 export default Statistics
 
 
+
+
+
+
+
+
+

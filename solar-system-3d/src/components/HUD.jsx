@@ -7,7 +7,7 @@ import SearchBar from './ui/SearchBar'
 import SystemInfo from './ui/SystemInfo'
 import AudioPlayer from './ui/AudioPlayer'
 
-const HUD = ({ selected, onDeselect, asteroidCount, quality, setQuality }) => {
+const HUD = ({ selected, onDeselect, asteroidCount, quality, setQuality, onSearch }) => {
   const [fps, setFps] = useState(0)
   const [speed, setSpeed] = useState(50) // Default speed matching previous logic
   const [isPaused, setIsPaused] = useState(false)
@@ -42,7 +42,7 @@ const HUD = ({ selected, onDeselect, asteroidCount, quality, setQuality }) => {
     <>
       <Statistics count={asteroidCount} fps={fps} />
       
-      <SearchBar onSearch={(q) => console.log('Search:', q)} />
+      <SearchBar onSearch={onSearch} />
       
       {/* Show System Info when no object is selected, or Object Details when selected */}
       {!selected && <SystemInfo />}

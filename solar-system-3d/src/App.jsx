@@ -1,6 +1,7 @@
-import React, { Suspense, useState, useEffect } from 'react'
+import React, { Suspense, useState, useEffect, useRef } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, Stars } from '@react-three/drei'
+import * as THREE from 'three'
 import SolarSystem from './components/SolarSystem'
 import HUD from './components/HUD'
 
@@ -8,15 +9,112 @@ import HUD from './components/HUD'
 // Will re-enable once compatibility issues are resolved
 const ENABLE_POSTPROCESSING = false
 
+// Planet data for search functionality
+const PLANET_DATA = [
+  { name: 'Mercury', distance: 0.39, period: 88, diameter: 4879, horizons: 199 },
+  { name: 'Venus', distance: 0.72, period: 225, diameter: 12104, horizons: 299 },
+  { name: 'Earth', distance: 1.0, period: 365, diameter: 12742, horizons: 399 },
+  { name: 'Mars', distance: 1.52, period: 687, diameter: 6779, horizons: 499 },
+  { name: 'Jupiter', distance: 5.2, period: 4331, diameter: 139822, horizons: 599 },
+  { name: 'Saturn', distance: 9.5, period: 10747, diameter: 116464, horizons: 699 },
+  { name: 'Uranus', distance: 19.2, period: 30589, diameter: 50724, horizons: 799 },
+  { name: 'Neptune', distance: 30.1, period: 59800, diameter: 49244, horizons: 899 },
+]
+
 function App() {
   const [selectedAsteroid, setSelectedAsteroid] = useState(null)
   const [quality, setQuality] = useState('high') // 'high' or 'low'
+  const [searchResults, setSearchResults] = useState([])
+  const controlsRef = useRef()
 
   // Add mobile check/default
   useEffect(() => {
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     if (isMobile) setQuality('low');
   }, []);
+
+  // Search functionality
+  const handleSearch = (query) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    const q = query.toLowerCase().trim();
+    const results = [];
+
+    // 1. Search planets first
+    const planetMatches = PLANET_DATA.filter(planet =>
+      planet.name.toLowerCase().includes(q)
+    );
+
+    if (planetMatches.length > 0) {
+      planetMatches.forEach(planet => {
+        results.push({
+          type: 'planet',
+          id: planet.horizons.toString(),
+          name: planet.name,
+          class: 'Planet',
+          diameter: planet.diameter,
+          period: planet.period,
+          distance: planet.distance
+        });
+      });
+    }
+
+    // 2. For asteroid searches, create a placeholder result that will be processed by SolarSystem
+    // Check if it's an asteroid ID (numeric) or class
+    const isNumeric = /^\d+$/.test(query.trim());
+    const isClass = ['apo', 'mba', 'ate', 'tno', 'cen'].includes(q);
+
+    if (results.length === 0 && (isNumeric || isClass)) {
+      results.push({
+        type: 'asteroid',
+        query: query.trim()
+      });
+    }
+
+    setSearchResults(results);
+
+    // If we found planet results, focus on the first one
+    if (results.length > 0 && results[0].type === 'planet') {
+      focusOnObject(results[0]);
+    }
+  };
+
+  // Calculate planet position for camera focusing
+  const calculatePlanetPosition = (planet, time) => {
+    const angle = (time / planet.period) * Math.PI * 2;
+    const scale = 10.0; // Same scale as in SolarSystem
+    const x = Math.cos(angle) * planet.distance * scale;
+    const z = Math.sin(angle) * planet.distance * scale;
+    const y = 0;
+    return new THREE.Vector3(x, y, z);
+  };
+
+  // Focus camera on a found object
+  const focusOnObject = (object) => {
+    if (!controlsRef.current) return;
+
+    let targetPosition;
+    if (object.type === 'planet') {
+      targetPosition = calculatePlanetPosition(object, 0);
+    } else if (object.type === 'asteroid') {
+      // We'll need to calculate asteroid position
+      // For now, just focus on the sun as fallback
+      targetPosition = new THREE.Vector3(0, 0, 0);
+    }
+
+    if (targetPosition) {
+      // Set camera target to the object
+      controlsRef.current.target.copy(targetPosition);
+      // Move camera to a good viewing position
+      const cameraDistance = 50;
+      const cameraPos = targetPosition.clone().add(new THREE.Vector3(cameraDistance, cameraDistance, cameraDistance));
+      controlsRef.current.object.position.copy(cameraPos);
+      controlsRef.current.update();
+    }
+  };
 
   return (
     <>
@@ -37,13 +135,17 @@ function App() {
         <spotLight position={[50, 50, 50]} angle={0.5} penumbra={1} intensity={1} color="#ffffff" /> {/* Rim light */}
         
         <Suspense fallback={null}>
-          <SolarSystem onSelect={setSelectedAsteroid} />
+          <SolarSystem
+            onSelect={setSelectedAsteroid}
+            searchResults={searchResults}
+          />
           <Stars radius={300} depth={50} count={quality === 'high' ? 5000 : 1000} factor={4} saturation={0} fade speed={1} />
         </Suspense>
         
-        <OrbitControls 
-          minDistance={10} 
-          maxDistance={600} 
+        <OrbitControls
+          ref={controlsRef}
+          minDistance={10}
+          maxDistance={600}
           enablePan={true}
           enableZoom={true}
           enableRotate={true}
@@ -57,12 +159,13 @@ function App() {
           null
         )}
       </Canvas>
-      <HUD 
-        selected={selectedAsteroid} 
+      <HUD
+        selected={selectedAsteroid}
         onDeselect={() => setSelectedAsteroid(null)}
-        quality={quality} 
+        quality={quality}
         setQuality={setQuality}
         asteroidCount={18000} // This should be dynamic
+        onSearch={handleSearch}
       />
     </>
   )

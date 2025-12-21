@@ -117,3 +117,10 @@ const ObjectDetails = ({ selected, onClose }) => {
 export default ObjectDetails
 
 
+
+
+
+
+
+
+
