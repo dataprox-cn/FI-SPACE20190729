@@ -42,6 +42,7 @@ function App() {
 
     const q = query.toLowerCase().trim();
     const results = [];
+    let foundMatch = false;
 
     // 1. Search planets first
     const planetMatches = PLANET_DATA.filter(planet =>
@@ -57,9 +58,11 @@ function App() {
           class: 'Planet',
           diameter: planet.diameter,
           period: planet.period,
-          distance: planet.distance
+          distance: planet.distance,
+          position: calculatePlanetPosition(planet, 0)
         });
       });
+      foundMatch = true;
     }
 
     // 2. For asteroid searches, create a placeholder result that will be processed by SolarSystem
@@ -67,7 +70,7 @@ function App() {
     const isNumeric = /^\d+$/.test(query.trim());
     const isClass = ['apo', 'mba', 'ate', 'tno', 'cen'].includes(q);
 
-    if (results.length === 0 && (isNumeric || isClass)) {
+    if (!foundMatch && (isNumeric || isClass)) {
       results.push({
         type: 'asteroid',
         query: query.trim()
@@ -135,10 +138,7 @@ function App() {
         <spotLight position={[50, 50, 50]} angle={0.5} penumbra={1} intensity={1} color="#ffffff" /> {/* Rim light */}
         
         <Suspense fallback={null}>
-          <SolarSystem
-            onSelect={setSelectedAsteroid}
-            searchResults={searchResults}
-          />
+          <SolarSystem onSelect={setSelectedAsteroid} searchResults={searchResults} />
           <Stars radius={300} depth={50} count={quality === 'high' ? 5000 : 1000} factor={4} saturation={0} fade speed={1} />
         </Suspense>
         

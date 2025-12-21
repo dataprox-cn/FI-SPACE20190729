@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { useFrame, useThree } from '@react-three/fiber'
+import { useThree, useFrame } from '@react-three/fiber'
 import { Text } from '@react-three/drei'
 import * as THREE from 'three'
 import AsteroidField from './AsteroidField'
@@ -146,8 +146,7 @@ const SolarSystem = ({ onSelect, searchResults }) => {
 
   // Handle asteroid searches
   useEffect(() => {
-    if (!asteroidData) return;
-    if (!searchResults.length) return;
+    if (!asteroidData || !searchResults.length) return;
 
     const asteroidResult = searchResults.find(result => result.type === 'asteroid');
     if (!asteroidResult || !asteroidResult.query) return;
@@ -155,64 +154,41 @@ const SolarSystem = ({ onSelect, searchResults }) => {
     const query = asteroidResult.query;
     const q = query.toLowerCase().trim();
 
-    // Search by asteroid ID (numeric) - improved to handle partial IDs
+    // Search by asteroid ID (numeric)
     if (/^\d+$/.test(query)) {
-      let possibleIds = [];
+      const idMatch = asteroidData.meta.ids.findIndex(id => id.toString() === query);
+      if (idMatch !== -1) {
+        // Found asteroid by ID
+        const offset = idMatch * 9;
+        const info = {
+          id: asteroidData.meta.ids[idMatch],
+          name: asteroidData.meta.names[idMatch] || `Asteroid ${asteroidData.meta.ids[idMatch]}`,
+          class: asteroidData.meta.classes[Math.round(asteroidData.data[offset + 8])],
+          diameter: asteroidData.data[offset + 7],
+          type: 'asteroid'
+        };
 
-      if (query.length <= 3) {
-        // Short ID like "123" -> try "2000123"
-        possibleIds.push(`2000${query.padStart(3, '0')}`);
-      } else if (query.length === 4) {
-        // Could be "0123" -> try "2000123" or just "0123"
-        possibleIds.push(`2000${query}`);
-        possibleIds.push(query);
-      } else if (query.length >= 7 && query.startsWith('2000')) {
-        // Full ID like "2000123"
-        possibleIds.push(query);
-      } else {
-        // Other lengths - try exact match and with 2000 prefix
-        possibleIds.push(query);
-        if (query.length <= 4) {
-          possibleIds.push(`2000${query.padStart(4, '0')}`);
-        }
-      }
+        // Calculate period and distance like in InteractionHandler
+        const e = asteroidData.data[offset];
+        const q_val = asteroidData.data[offset + 1];
+        const a = q_val / (1.0 - e);
+        info.period = Math.sqrt(Math.pow(a, 3)) * 365.25;
 
-      // Try each possible ID
-      for (const possibleId of possibleIds) {
-        const idMatch = asteroidData.meta.ids.findIndex(id => id.toString() === possibleId);
-        if (idMatch !== -1) {
-          // Found match - proceed with existing logic
-          const offset = idMatch * 9;
-          const info = {
-            id: asteroidData.meta.ids[idMatch],
-            name: asteroidData.meta.names[idMatch] || `Asteroid ${asteroidData.meta.ids[idMatch]}`,
-            class: asteroidData.meta.classes[Math.round(asteroidData.data[offset + 8])],
-            diameter: asteroidData.data[offset + 7],
-            type: 'asteroid'
-          };
+        // Calculate current distance
+        const orbit = {
+          e: asteroidData.data[offset],
+          q: asteroidData.data[offset + 1],
+          i: asteroidData.data[offset + 2],
+          om: asteroidData.data[offset + 3],
+          w: asteroidData.data[offset + 4],
+          ma: asteroidData.data[offset + 5],
+          epoch: asteroidData.data[offset + 6]
+        };
+        const pos = getAsteroidPosition(orbit, time);
+        info.distance = Math.sqrt(pos.x*pos.x + pos.y*pos.y + pos.z*pos.z);
 
-          // Calculate period and distance like in InteractionHandler
-          const e = asteroidData.data[offset];
-          const q_val = asteroidData.data[offset + 1];
-          const a = q_val / (1.0 - e);
-          info.period = Math.sqrt(Math.pow(a, 3)) * 365.25;
-
-          // Calculate current distance and position
-          const orbit = {
-            e: asteroidData.data[offset],
-            q: asteroidData.data[offset + 1],
-            i: asteroidData.data[offset + 2],
-            om: asteroidData.data[offset + 3],
-            w: asteroidData.data[offset + 4],
-            ma: asteroidData.data[offset + 5],
-            epoch: asteroidData.data[offset + 6]
-          };
-          const pos = getAsteroidPosition(orbit, time);
-          info.distance = Math.sqrt(pos.x*pos.x + pos.y*pos.y + pos.z*pos.z);
-
-          onSelect(info);
-          return; // Found a match, stop searching
-        }
+        onSelect(info);
+        return;
       }
     }
 
@@ -257,7 +233,6 @@ const SolarSystem = ({ onSelect, searchResults }) => {
     }
   }, [searchResults, asteroidData, onSelect, time])
 
-
   if (error) {
     return (
       <mesh position={[0, 0, 0]}>
@@ -299,10 +274,10 @@ const SolarSystem = ({ onSelect, searchResults }) => {
       {asteroidData && (
         <>
           <AsteroidField data={asteroidData.data} count={asteroidData.count} meta={asteroidData.meta} />
-
-          <InteractionHandler
-            data={asteroidData.data}
-            count={asteroidData.count}
+          
+          <InteractionHandler 
+            data={asteroidData.data} 
+            count={asteroidData.count} 
             meta={asteroidData.meta}
             onSelect={onSelect}
           />
