@@ -183,8 +183,13 @@ const Planets = ({ onSelect, time }) => {
         const z = Math.sin(angle) * planet.distance * scale
         const y = 0 
         
-        // Increased size significantly for better visibility
-        const size = Math.log(planet.diameter / 1000 + 1) * 0.8
+        // Improved size calculation for better visibility of all planets
+        // Use cube root scaling for more balanced size representation
+        // Add minimum size to ensure all planets are visible
+        const baseSize = Math.pow(planet.diameter / 1000, 1/3) * 1.2
+        const minSize = 0.8 // Minimum size for visibility
+        const distanceBoost = planet.distance > 10 ? 1.3 : 1.0 // Boost for outer planets
+        const size = Math.max(baseSize * distanceBoost, minSize)
 
         return (
           <group key={planet.name} position={[x, y, z]}>
@@ -209,7 +214,7 @@ const Planets = ({ onSelect, time }) => {
                 roughness={0.4}
                 metalness={0.1}
                 emissive={planet.color}
-                emissiveIntensity={0.1}
+                emissiveIntensity={planet.distance > 10 ? 0.2 : 0.1} // Brighter glow for outer planets
               />
             </mesh>
             
@@ -219,7 +224,7 @@ const Planets = ({ onSelect, time }) => {
               <meshBasicMaterial 
                 color={planet.color} 
                 transparent 
-                opacity={0.15} 
+                opacity={planet.distance > 10 ? 0.25 : 0.15} // More visible glow for outer planets
                 blending={THREE.AdditiveBlending} 
                 side={THREE.BackSide}
               />

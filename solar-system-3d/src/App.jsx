@@ -122,7 +122,7 @@ function App() {
   return (
     <>
       <Canvas 
-        camera={{ position: [0, 80, 80], fov: 50, far: 2000, near: 0.1 }}
+        camera={{ position: [0, 120, 120], fov: 50, far: 500, near: 0.1 }}
         dpr={quality === 'high' ? [1, 2] : [0.75, 1.5]} // Dynamic pixel ratio
         gl={{ 
           antialias: quality === 'high',
