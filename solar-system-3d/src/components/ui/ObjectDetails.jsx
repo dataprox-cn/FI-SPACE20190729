@@ -90,7 +90,11 @@ const ObjectDetails = ({ selected, onClose }) => {
       
       <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
         <a 
-          href={`https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr=${selected.id}`}
+          href={
+            selected.type === 'planet' 
+              ? `https://science.nasa.gov/solar-system/${selected.name.toLowerCase()}/`
+              : `https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr=${selected.id}`
+          }
           target="_blank"
           rel="noopener noreferrer"
           style={{
@@ -107,7 +111,7 @@ const ObjectDetails = ({ selected, onClose }) => {
           onMouseOver={e => e.target.style.background = 'rgba(255,255,255,0.2)'}
           onMouseOut={e => e.target.style.background = 'rgba(255,255,255,0.1)'}
         >
-          View Full NASA Data →
+          {selected.type === 'planet' ? 'View on NASA Science →' : 'View Full NASA Data →'}
         </a>
       </div>
     </Card>

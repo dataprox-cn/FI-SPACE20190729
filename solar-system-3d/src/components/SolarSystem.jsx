@@ -125,7 +125,7 @@ const InteractionHandler = ({ data, count, meta, onSelect }) => {
   return null
 }
 
-const SolarSystem = ({ onSelect, searchResults }) => {
+const SolarSystem = ({ onSelect, searchResults, activeFilters }) => {
   const [asteroidData, setAsteroidData] = useState(null)
   const [error, setError] = useState(null)
   const [time, setTime] = useState(0)
@@ -144,7 +144,7 @@ const SolarSystem = ({ onSelect, searchResults }) => {
     setTime(state.clock.getElapsedTime() * 50.0) // Match asteroid time speed
   })
 
-  // Handle asteroid searches
+  // Handle asteroid searches (only when searchResults changes, not on every frame)
   useEffect(() => {
     if (!asteroidData || !searchResults.length) return;
 
@@ -231,7 +231,7 @@ const SolarSystem = ({ onSelect, searchResults }) => {
         }
       }
     }
-  }, [searchResults, asteroidData, onSelect, time])
+  }, [searchResults, asteroidData, onSelect]) // Removed 'time' dependency to prevent running every frame
 
   if (error) {
     return (
@@ -273,7 +273,7 @@ const SolarSystem = ({ onSelect, searchResults }) => {
       {/* Asteroids */}
       {asteroidData && (
         <>
-          <AsteroidField data={asteroidData.data} count={asteroidData.count} meta={asteroidData.meta} />
+          <AsteroidField data={asteroidData.data} count={asteroidData.count} meta={asteroidData.meta} activeFilters={activeFilters} />
           
           <InteractionHandler 
             data={asteroidData.data} 

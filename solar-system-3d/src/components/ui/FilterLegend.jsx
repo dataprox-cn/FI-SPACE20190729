@@ -6,12 +6,18 @@ const FilterLegend = ({ meta, activeFilters, onToggleFilter }) => {
   const [isCollapsed, setIsCollapsed] = useState(false)
 
   // Get common classes to show in legend (could be dynamic based on data)
-  const commonClasses = ['MBA', 'APO', 'ATE', 'TNO', 'CEN', 'JFc']
+  const commonClasses = ['MBA', 'IMB', 'OMB', 'MCA', 'APO', 'ATE', 'AMO', 'TJN', 'GRK', 'TNO', 'CEN', 'JFc']
   
   const classNames = {
     'MBA': 'Main Belt',
+    'IMB': 'Inner Main Belt',
+    'OMB': 'Outer Main Belt',
+    'MCA': 'Mars-Crosser',
     'APO': 'Apollo (NEO)',
     'ATE': 'Aten (NEO)',
+    'AMO': 'Amor (NEO)',
+    'TJN': 'Jupiter Trojan',
+    'GRK': 'Greek',
     'TNO': 'Trans-Neptunian',
     'CEN': 'Centaur',
     'JFc': 'Jupiter Family Comet'

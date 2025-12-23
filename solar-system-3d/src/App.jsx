@@ -25,6 +25,7 @@ function App() {
   const [selectedAsteroid, setSelectedAsteroid] = useState(null)
   const [quality, setQuality] = useState('high') // 'high' or 'low'
   const [searchResults, setSearchResults] = useState([])
+  const [activeFilters, setActiveFilters] = useState({})
   const controlsRef = useRef()
 
   // Add mobile check/default
@@ -55,7 +56,7 @@ function App() {
           type: 'planet',
           id: planet.horizons.toString(),
           name: planet.name,
-          class: 'Planet',
+          class: planet.name, // Use planet name as class to get correct color
           diameter: planet.diameter,
           period: planet.period,
           distance: planet.distance,
@@ -79,9 +80,10 @@ function App() {
 
     setSearchResults(results);
 
-    // If we found planet results, focus on the first one
+    // If we found planet results, focus on the first one and show details
     if (results.length > 0 && results[0].type === 'planet') {
       focusOnObject(results[0]);
+      setSelectedAsteroid(results[0]); // Show planet details in the panel
     }
   };
 
@@ -119,6 +121,14 @@ function App() {
     }
   };
 
+  // Toggle filter on/off
+  const handleToggleFilter = (cls) => {
+    setActiveFilters(prev => ({
+      ...prev,
+      [cls]: prev[cls] === false ? true : false
+    }))
+  }
+
   return (
     <>
       <Canvas 
@@ -138,7 +148,7 @@ function App() {
         <spotLight position={[50, 50, 50]} angle={0.5} penumbra={1} intensity={1} color="#ffffff" /> {/* Rim light */}
         
         <Suspense fallback={null}>
-          <SolarSystem onSelect={setSelectedAsteroid} searchResults={searchResults} />
+          <SolarSystem onSelect={setSelectedAsteroid} searchResults={searchResults} activeFilters={activeFilters} />
           <Stars radius={300} depth={50} count={quality === 'high' ? 5000 : 1000} factor={4} saturation={0} fade speed={1} />
         </Suspense>
         
@@ -166,6 +176,8 @@ function App() {
         setQuality={setQuality}
         asteroidCount={18000} // This should be dynamic
         onSearch={handleSearch}
+        activeFilters={activeFilters}
+        onToggleFilter={handleToggleFilter}
       />
     </>
   )

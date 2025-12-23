@@ -200,11 +200,12 @@ const Planets = ({ onSelect, time }) => {
                 onSelect({
                   id: planet.horizons.toString(),
                   name: planet.name,
-                  class: 'Planet',
+                  class: planet.name, // Use planet name as class for correct color
                   diameter: planet.diameter,
                   period: planet.period,
                   distance: planet.distance,
-                  fact: planet.fact
+                  fact: planet.fact,
+                  type: 'planet'
                 })
               }}
             >

@@ -123,6 +123,7 @@ const fragmentShader = `
   
   uniform sampler2D uTexture; // Glow sprite
   uniform sampler2D uColorMap; // Color lookup texture
+  uniform float uFilterMask[32]; // Filter mask for each class (1.0 = visible, 0.0 = hidden)
   
   varying float vClassId;
   varying float vAlpha;
@@ -130,6 +131,18 @@ const fragmentShader = `
 
   void main() {
     int id = int(vClassId + 0.5);
+    
+    // Check if this class is filtered out
+    float filterValue = 1.0;
+    if (id < 32) {
+      filterValue = uFilterMask[id];
+    }
+    
+    // If filtered out, discard fragment
+    if (filterValue < 0.5) {
+      discard;
+    }
+    
     // Lookup color from texture (x = class_id, y = 0)
     vec3 color = texture2D(uColorMap, vec2((float(id) + 0.5) / 32.0, 0.5)).rgb;
     
@@ -144,7 +157,7 @@ const fragmentShader = `
   }
 `
 
-const AsteroidField = ({ data, count, meta }) => {
+const AsteroidField = ({ data, count, meta, activeFilters }) => {
   const meshRef = useRef()
   const glowTexture = useMemo(() => createGlowTexture(), [])
   
@@ -178,12 +191,18 @@ const AsteroidField = ({ data, count, meta }) => {
     return texture;
   }, [meta]);
 
-  const uniforms = useMemo(() => ({
-    uTime: { value: 0 },
-    uTexture: { value: glowTexture },
-    uColorMap: { value: colorTexture },
-    uScale: { value: 2.4 } // Increased scale by 20% (2.0 * 1.2) for better visibility
-  }), [glowTexture, colorTexture])
+  const uniforms = useMemo(() => {
+    // Initialize filter mask (all visible by default)
+    const filterMask = new Array(32).fill(1.0);
+    
+    return {
+      uTime: { value: 0 },
+      uTexture: { value: glowTexture },
+      uColorMap: { value: colorTexture },
+      uScale: { value: 2.4 }, // Increased scale by 20% (2.0 * 1.2) for better visibility
+      uFilterMask: { value: filterMask }
+    };
+  }, [glowTexture, colorTexture])
 
   // Geometry: Simple Quad for Billboard
   const geometry = useMemo(() => {
@@ -213,6 +232,24 @@ const AsteroidField = ({ data, count, meta }) => {
         meshRef.current.material.uniforms.uColorMap.value = colorTexture;
     }
   }, [colorTexture]);
+
+  // Update filter mask when activeFilters changes
+  useEffect(() => {
+    if (!meshRef.current || !meta || !meta.classes) return;
+
+    const filterMask = new Array(32).fill(1.0);
+    
+    // For each class index, check if it's filtered out
+    meta.classes.forEach((className, classIndex) => {
+      // If activeFilters[className] is explicitly false, hide it
+      if (activeFilters && activeFilters[className] === false) {
+        filterMask[classIndex] = 0.0;
+      }
+    });
+    
+    meshRef.current.material.uniforms.uFilterMask.value = filterMask;
+    meshRef.current.material.uniformsNeedUpdate = true;
+  }, [activeFilters, meta]);
 
   return (
     <instancedMesh ref={meshRef} args={[geometry, null, count]}>
