@@ -54,3 +54,40 @@ export const getAsteroidPosition = (orbit, time) => {
   return { x, y, z }
 }
 
+export const getOrbitPoints = (orbit, numPoints = 128) => {
+  const { e, q, i, om, w } = orbit
+  const a = q / (1.0 - e)
+  const pts = []
+  
+  for (let j = 0; j <= numPoints; j++) {
+    const M = (j / numPoints) * Math.PI * 2
+    const E = solveKepler(M, e)
+    
+    const P = a * (Math.cos(E) - e)
+    const Q = a * Math.sqrt(1.0 - e * e) * Math.sin(E)
+    
+    let x = P
+    let y = Q
+    let z = 0
+    
+    // Rotate Z (w)
+    let tx = x * Math.cos(w) - y * Math.sin(w)
+    let ty = x * Math.sin(w) + y * Math.cos(w)
+    x = tx; y = ty;
+    
+    // Rotate X (i)
+    let ty2 = y * Math.cos(i) - z * Math.sin(i)
+    let tz2 = y * Math.sin(i) + z * Math.cos(i)
+    y = ty2; z = tz2;
+    
+    // Rotate Z (om)
+    let tx3 = x * Math.cos(om) - y * Math.sin(om)
+    let ty3 = x * Math.sin(om) + y * Math.cos(om)
+    x = tx3; y = ty3;
+    
+    const scale = 10.0
+    pts.push({ x: x * scale, y: y * scale, z: z * scale })
+  }
+  return pts
+}
+

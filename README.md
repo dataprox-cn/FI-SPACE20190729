@@ -11,6 +11,35 @@ This repository explains how to make a map of the solar system using open-source
 
 ![Snapshot of final product](./readme_figures/asteroids.jpg)
 
+---
+
+## 🆕 **NEW: Interactive 3D Visualization**
+
+**Explore 18,000 asteroids and comets in real-time 3D!** 
+
+This repository now includes an interactive WebGL visualization built with React Three Fiber. Experience the solar system like never before with:
+- ✨ **18,000 real asteroids** from NASA data
+- 🪐 **All 8 planets** with accurate orbits
+- 🔍 **Search & filter** by name, class, or ID
+- 🎮 **Interactive controls** - click, zoom, rotate
+- 🌈 **12 color-coded classes** - Main Belt, NEOs, Trojans, TNOs, and more
+- ⚡ **60 FPS performance** with GPU acceleration
+
+**[→ View the 3D Solar System README](./solar-system-3d/README.md)**  
+**[→ Quick Start Guide (5 minutes!)](./solar-system-3d/QUICKSTART.md)**
+
+To run locally:
+```bash
+cd solar-system-3d
+npm install
+npm run dev
+# Open http://localhost:5173
+```
+
+Try searching for: `earth`, `1` (Ceres), `99942` (Apophis), or click the legend to filter classes!
+
+---
+
 ## Special instructions for beginners
 
 ##### If you're new to coding:

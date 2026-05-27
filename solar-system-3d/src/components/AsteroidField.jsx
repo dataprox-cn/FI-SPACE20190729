@@ -157,7 +157,7 @@ const fragmentShader = `
   }
 `
 
-const AsteroidField = ({ data, count, meta, activeFilters }) => {
+const AsteroidField = ({ data, count, meta, activeFilters, speed, isPaused }) => {
   const meshRef = useRef()
   const glowTexture = useMemo(() => createGlowTexture(), [])
   
@@ -217,13 +217,10 @@ const AsteroidField = ({ data, count, meta, activeFilters }) => {
     return geo
   }, [data])
 
-  useFrame((state) => {
-    const time = state.clock.getElapsedTime()
-    // Speed up time: 1 second = 50 days (slower for beauty)
-    uniforms.uTime.value = time * 50.0;
-    
-    // Update color array if needed (it's static usually)
-    // uniforms.uColors.value = colorArray; 
+  useFrame((state, delta) => {
+    if (!isPaused) {
+      uniforms.uTime.value += delta * speed;
+    }
   })
   
   // Re-update uniforms ref when colors change (async load)

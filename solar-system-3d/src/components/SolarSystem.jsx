@@ -1,28 +1,57 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef, useMemo } from 'react'
 import { useThree, useFrame } from '@react-three/fiber'
 import { Text } from '@react-three/drei'
 import * as THREE from 'three'
 import AsteroidField from './AsteroidField'
 import Planets from './Planets'
 import { loadAsteroidData } from '../utils/dataLoader'
-import { getAsteroidPosition } from '../utils/orbitalMath'
+import { getAsteroidPosition, getOrbitPoints } from '../utils/orbitalMath'
+import { createSunTexture } from '../utils/textureGenerator'
+import { ASTEROID_COLORS } from '../utils/colors'
 
-const InteractionHandler = ({ data, count, meta, onSelect }) => {
-  const { camera, raycaster, pointer, clock } = useThree()
+// Renders the elliptical glowing path for selected asteroids
+const SelectedOrbit = ({ orbit, color }) => {
+  const points = useMemo(() => {
+    if (!orbit) return []
+    return getOrbitPoints(orbit, 128)
+  }, [orbit])
+
+  if (points.length === 0) return null
+
+  return (
+    <line>
+      <bufferGeometry>
+        <bufferAttribute
+          attach="attributes-position"
+          args={[new Float32Array(points.flatMap(p => [p.x, p.y, p.z])), 3]}
+        />
+      </bufferGeometry>
+      <lineBasicMaterial 
+        color={color} 
+        transparent 
+        opacity={0.7} 
+        linewidth={2.5} 
+        depthWrite={false} 
+      />
+    </line>
+  )
+}
+
+const InteractionHandler = ({ data, count, meta, onSelect, timeRef }) => {
+  const { camera, raycaster, pointer } = useThree()
 
   useEffect(() => {
     const handleClick = () => {
       raycaster.setFromCamera(pointer, camera)
       const ray = raycaster.ray
 
-      // Time must match shader: time * 50.0 (Updated speed)
-      const time = clock.getElapsedTime() * 50.0
+      // Time matched with dynamic timescale
+      const time = timeRef.current
       
       let minDist = Infinity
       let closestId = -1
       
       // Threshold distance (units) - roughly asteroid size + tolerance
-      // Increased threshold for easier touch selection (was 2.0)
       const threshold = 4.0 
 
       // Data stride = 9
@@ -56,26 +85,13 @@ const InteractionHandler = ({ data, count, meta, onSelect }) => {
 
       if (closestId !== -1) {
         console.log("Hit asteroid:", closestId)
-        // Construct info object
-        const info = {
-          id: meta.ids[closestId],
-          name: meta.names[closestId] || `Asteroid ${meta.ids[closestId]}`,
-          class: meta.classes[Math.round(data[closestId*9 + 8])],
-          diameter: data[closestId*9 + 7],
-          // Calculate period (T^2 = a^3)
-          // a = q / (1-e)
-          // period = sqrt(a^3) * 365.25 (if a in AU, period in days approx)
-        }
-        // Improve Period/Distance calculation for display
         const offset = closestId * 9
         const e = data[offset]
         const q = data[offset+1]
         const a = q / (1.0 - e)
         const period = Math.sqrt(Math.pow(a, 3)) * 365.25
-        info.period = period
-        
-        // Calculate current distance
-        const pos = getAsteroidPosition({
+
+        const orbit = {
           e: data[offset],
           q: data[offset+1],
           i: data[offset+2],
@@ -83,52 +99,46 @@ const InteractionHandler = ({ data, count, meta, onSelect }) => {
           w: data[offset+4],
           ma: data[offset+5],
           epoch: data[offset+6]
-        }, time)
+        }
+
+        // Construct info object with full orbit elements
+        const info = {
+          id: meta.ids[closestId],
+          name: meta.names[closestId] || `Asteroid ${meta.ids[closestId]}`,
+          class: meta.classes[Math.round(data[closestId*9 + 8])],
+          diameter: data[closestId*9 + 7],
+          type: 'asteroid',
+          period: period,
+          orbit: orbit
+        }
+        
+        // Calculate current distance
+        const pos = getAsteroidPosition(orbit, time)
         const dist = Math.sqrt(pos.x*pos.x + pos.y*pos.y + pos.z*pos.z)
         info.distance = dist
 
         onSelect(info)
       } else {
-        // Only deselect if we didn't hit anything? 
-        // We handle planet clicks separately, so if this runs on global click, it might conflict.
-        // InteractionHandler attached to window click might override planet click.
-        // Better: Raycast only when needed or let R3F handle it.
-        // But for 18k instances, manual raycast is needed.
-        // To avoid clearing planet selection, we should check if we hit an asteroid.
-        // If not, we don't necessarily null it here if the event propagated from a planet.
-        // But window click is global.
-        
-        // Let's use `event.stopPropagation` in Planets?
-        // But this is a window listener.
-        
-        // We'll call onSelect(null) only if we explicitly clicked background?
-        // Hard to know from here. 
-        
-        // Fix: Use the standard `onPointerDown` on the mesh instead of window listener?
-        // InstancedMesh supports events if we use raycast logic in R3F.
-        // But native R3F raycasting on 20k instances is slow.
-        // Stick to this optimized one, but maybe only fire if no planet was clicked?
-        
-        // For now, let's just Log and Select if hit.
-        if (closestId === -1) {
-           // Don't deselect here, let the user click "X" on the card or click empty space explicitly?
-           // Or just deselect.
-           onSelect(null)
-        }
+        onSelect(null)
       }
     }
 
     window.addEventListener('click', handleClick)
     return () => window.removeEventListener('click', handleClick)
-  }, [data, count, meta, onSelect, camera, raycaster, pointer, clock])
+  }, [data, count, meta, onSelect, camera, raycaster, pointer, timeRef])
 
   return null
 }
 
-const SolarSystem = ({ onSelect, searchResults, activeFilters }) => {
+const SolarSystem = ({ onSelect, searchResults, activeFilters, speed, isPaused, showOrbits, showLabels, selectedObject }) => {
   const [asteroidData, setAsteroidData] = useState(null)
   const [error, setError] = useState(null)
   const [time, setTime] = useState(0)
+
+  const accumulatedTimeRef = useRef(0)
+  const sunRef = useRef()
+
+  const sunTexture = useMemo(() => createSunTexture(), [])
 
   useEffect(() => {
     loadAsteroidData()
@@ -139,12 +149,18 @@ const SolarSystem = ({ onSelect, searchResults, activeFilters }) => {
       })
   }, [])
 
-  // Update time for planet animation
-  useFrame((state) => {
-    setTime(state.clock.getElapsedTime() * 50.0) // Match asteroid time speed
+  // Update time for simulation propagation
+  useFrame((state, delta) => {
+    if (!isPaused) {
+      accumulatedTimeRef.current += delta * speed;
+      if (sunRef.current) {
+        sunRef.current.rotation.y += delta * 0.08 * (speed / 50.0);
+      }
+    }
+    setTime(accumulatedTimeRef.current)
   })
 
-  // Handle asteroid searches (only when searchResults changes, not on every frame)
+  // Handle asteroid searches (only when searchResults changes)
   useEffect(() => {
     if (!asteroidData || !searchResults.length) return;
 
@@ -158,23 +174,12 @@ const SolarSystem = ({ onSelect, searchResults, activeFilters }) => {
     if (/^\d+$/.test(query)) {
       const idMatch = asteroidData.meta.ids.findIndex(id => id.toString() === query);
       if (idMatch !== -1) {
-        // Found asteroid by ID
         const offset = idMatch * 9;
-        const info = {
-          id: asteroidData.meta.ids[idMatch],
-          name: asteroidData.meta.names[idMatch] || `Asteroid ${asteroidData.meta.ids[idMatch]}`,
-          class: asteroidData.meta.classes[Math.round(asteroidData.data[offset + 8])],
-          diameter: asteroidData.data[offset + 7],
-          type: 'asteroid'
-        };
-
-        // Calculate period and distance like in InteractionHandler
         const e = asteroidData.data[offset];
         const q_val = asteroidData.data[offset + 1];
         const a = q_val / (1.0 - e);
-        info.period = Math.sqrt(Math.pow(a, 3)) * 365.25;
+        const period = Math.sqrt(Math.pow(a, 3)) * 365.25;
 
-        // Calculate current distance
         const orbit = {
           e: asteroidData.data[offset],
           q: asteroidData.data[offset + 1],
@@ -184,6 +189,17 @@ const SolarSystem = ({ onSelect, searchResults, activeFilters }) => {
           ma: asteroidData.data[offset + 5],
           epoch: asteroidData.data[offset + 6]
         };
+
+        const info = {
+          id: asteroidData.meta.ids[idMatch],
+          name: asteroidData.meta.names[idMatch] || `Asteroid ${asteroidData.meta.ids[idMatch]}`,
+          class: asteroidData.meta.classes[Math.round(asteroidData.data[offset + 8])],
+          diameter: asteroidData.data[offset + 7],
+          type: 'asteroid',
+          period: period,
+          orbit: orbit
+        };
+
         const pos = getAsteroidPosition(orbit, time);
         info.distance = Math.sqrt(pos.x*pos.x + pos.y*pos.y + pos.z*pos.z);
 
@@ -195,24 +211,14 @@ const SolarSystem = ({ onSelect, searchResults, activeFilters }) => {
     // Search by asteroid class
     const classMatch = ['APO', 'MBA', 'ATE', 'TNO', 'CEN'].find(cls => cls.toLowerCase() === q);
     if (classMatch) {
-      // Find the first asteroid of that class
       for (let i = 0; i < asteroidData.count; i++) {
         const asteroidClass = asteroidData.meta.classes[Math.round(asteroidData.data[i*9 + 8])];
         if (asteroidClass === classMatch) {
           const offset = i * 9;
-          const info = {
-            id: asteroidData.meta.ids[i],
-            name: asteroidData.meta.names[i] || `Asteroid ${asteroidData.meta.ids[i]}`,
-            class: asteroidClass,
-            diameter: asteroidData.data[offset + 7],
-            type: 'asteroid'
-          };
-
-          // Calculate period and distance
           const e = asteroidData.data[offset];
           const q_val = asteroidData.data[offset + 1];
           const a = q_val / (1.0 - e);
-          info.period = Math.sqrt(Math.pow(a, 3)) * 365.25;
+          const period = Math.sqrt(Math.pow(a, 3)) * 365.25;
 
           const orbit = {
             e: asteroidData.data[offset],
@@ -223,6 +229,17 @@ const SolarSystem = ({ onSelect, searchResults, activeFilters }) => {
             ma: asteroidData.data[offset + 5],
             epoch: asteroidData.data[offset + 6]
           };
+
+          const info = {
+            id: asteroidData.meta.ids[i],
+            name: asteroidData.meta.names[i] || `Asteroid ${asteroidData.meta.ids[i]}`,
+            class: asteroidClass,
+            diameter: asteroidData.data[offset + 7],
+            type: 'asteroid',
+            period: period,
+            orbit: orbit
+          };
+
           const pos = getAsteroidPosition(orbit, time);
           info.distance = Math.sqrt(pos.x*pos.x + pos.y*pos.y + pos.z*pos.z);
 
@@ -231,7 +248,7 @@ const SolarSystem = ({ onSelect, searchResults, activeFilters }) => {
         }
       }
     }
-  }, [searchResults, asteroidData, onSelect]) // Removed 'time' dependency to prevent running every frame
+  }, [searchResults, asteroidData, onSelect])
 
   if (error) {
     return (
@@ -244,42 +261,87 @@ const SolarSystem = ({ onSelect, searchResults, activeFilters }) => {
 
   return (
     <group>
-      {/* Central Sun Marker - Enhanced with simple glow mesh */}
+      {/* Central Sun Marker - Highly Realistic Procedural Design */}
       <group position={[0, 0, 0]}>
-        <mesh>
-          <sphereGeometry args={[3, 32, 32]} />
-          <meshBasicMaterial color="#ffddaa" />
+        {/* Textured sun sphere */}
+        <mesh ref={sunRef}>
+          <sphereGeometry args={[4.0, 64, 64]} />
+          <meshBasicMaterial map={sunTexture} />
         </mesh>
-        <mesh>
-          <sphereGeometry args={[5, 32, 32]} />
-          <meshBasicMaterial color="#ffaa00" transparent opacity={0.16} blending={THREE.AdditiveBlending} depthWrite={false} />
+        
+        {/* Soft, layered dynamic atmospheric corona */}
+        <mesh scale={[1.22, 1.22, 1.22]}>
+          <sphereGeometry args={[4.0, 32, 32]} />
+          <meshBasicMaterial 
+            color="#ffba44" 
+            transparent 
+            opacity={0.32} 
+            blending={THREE.AdditiveBlending} 
+            depthWrite={false} 
+          />
         </mesh>
-        <Text
-          position={[0, 4, 0]}
-          fontSize={2}
-          color="#ffaa00"
-          anchorX="center"
-          anchorY="middle"
-          outlineWidth={0.15}
-          outlineColor="#000000"
-        >
-          Sun
-        </Text>
+
+        <mesh scale={[1.5, 1.5, 1.5]}>
+          <sphereGeometry args={[4.0, 32, 32]} />
+          <meshBasicMaterial 
+            color="#ff5500" 
+            transparent 
+            opacity={0.14} 
+            blending={THREE.AdditiveBlending} 
+            depthWrite={false} 
+          />
+        </mesh>
+
+        {showLabels && (
+          <Text
+            position={[0, 6.5, 0]}
+            fontSize={2.2}
+            color="#ffcc66"
+            anchorX="center"
+            anchorY="middle"
+            outlineWidth={0.15}
+            outlineColor="#000000"
+          >
+            Sun
+          </Text>
+        )}
       </group>
       
-      {/* Planets with Labels */}
-      <Planets onSelect={onSelect} time={time} />
+      {/* Planets with Labels, Orbits, and Custom Textures */}
+      <Planets 
+        onSelect={onSelect} 
+        time={time} 
+        showOrbits={showOrbits} 
+        showLabels={showLabels} 
+        selectedObject={selectedObject}
+      />
+
+      {/* Selected Asteroid Glowing Elliptical Orbit Track */}
+      {selectedObject && selectedObject.type === 'asteroid' && selectedObject.orbit && showOrbits && (
+        <SelectedOrbit 
+          orbit={selectedObject.orbit} 
+          color={ASTEROID_COLORS[selectedObject.class] || '#00e5ff'} 
+        />
+      )}
       
       {/* Asteroids */}
       {asteroidData && (
         <>
-          <AsteroidField data={asteroidData.data} count={asteroidData.count} meta={asteroidData.meta} activeFilters={activeFilters} />
+          <AsteroidField 
+            data={asteroidData.data} 
+            count={asteroidData.count} 
+            meta={asteroidData.meta} 
+            activeFilters={activeFilters} 
+            speed={speed}
+            isPaused={isPaused}
+          />
           
           <InteractionHandler 
             data={asteroidData.data} 
             count={asteroidData.count} 
             meta={asteroidData.meta}
             onSelect={onSelect}
+            timeRef={accumulatedTimeRef}
           />
         </>
       )}

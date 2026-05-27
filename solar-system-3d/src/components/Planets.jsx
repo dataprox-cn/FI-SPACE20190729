@@ -1,7 +1,8 @@
-import React, { useRef, useState } from 'react'
+import React, { useRef, useState, useMemo } from 'react'
 import { Html } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
+import { loadPlanetTextures } from '../utils/textureLoader'
 
 const PLANET_DATA = [
   { 
@@ -9,8 +10,9 @@ const PLANET_DATA = [
     distance: 0.39, 
     period: 88, 
     diameter: 4879, 
-    color: '#A5A5A5', // Grey/Silver
+    color: '#A5A5A5', 
     horizons: 199,
+    classDesc: 'Rocky Planet',
     fact: "Smallest planet, experiences extreme temperature swings." 
   },
   { 
@@ -18,8 +20,9 @@ const PLANET_DATA = [
     distance: 0.72, 
     period: 225, 
     diameter: 12104, 
-    color: '#E3BB76', // Pale Yellow/Beige
+    color: '#E3BB76', 
     horizons: 299,
+    classDesc: 'Terrestrial Planet',
     fact: "Hottest planet due to a thick atmosphere, rotates backward." 
   },
   { 
@@ -27,8 +30,9 @@ const PLANET_DATA = [
     distance: 1.0, 
     period: 365, 
     diameter: 12742, 
-    color: '#2E81E6', // Vibrant Earth Blue
+    color: '#2E81E6', 
     horizons: 399,
+    classDesc: 'Habitable Planet',
     fact: "Only planet known to support life, has abundant liquid water." 
   },
   { 
@@ -36,8 +40,9 @@ const PLANET_DATA = [
     distance: 1.52, 
     period: 687, 
     diameter: 6779, 
-    color: '#D14A28', // Rust Red
+    color: '#D14A28', 
     horizons: 499,
+    classDesc: 'Terrestrial Planet',
     fact: "Known as the 'Red Planet' due to iron oxide on its surface." 
   },
   { 
@@ -45,8 +50,9 @@ const PLANET_DATA = [
     distance: 5.2, 
     period: 4331, 
     diameter: 139822, 
-    color: '#DBC29E', // Beige/Brown
+    color: '#DBC29E', 
     horizons: 599,
+    classDesc: 'Gas Giant',
     fact: "Largest planet, its Great Red Spot is a massive storm." 
   },
   { 
@@ -54,8 +60,9 @@ const PLANET_DATA = [
     distance: 9.5, 
     period: 10747, 
     diameter: 116464, 
-    color: '#EBD797', // Pale Gold
+    color: '#EBD797', 
     horizons: 699,
+    classDesc: 'Gas Giant',
     fact: "Famous for its complex and extensive ring system." 
   },
   { 
@@ -63,8 +70,9 @@ const PLANET_DATA = [
     distance: 19.2, 
     period: 30589, 
     diameter: 50724, 
-    color: '#93B8BE', // Pale Cyan
+    color: '#93B8BE', 
     horizons: 799,
+    classDesc: 'Ice Giant',
     fact: "Rotates on its side, likely from a past collision." 
   },
   { 
@@ -72,181 +80,337 @@ const PLANET_DATA = [
     distance: 30.1, 
     period: 59800, 
     diameter: 49244, 
-    color: '#3E54E8', // Deep Royal Blue
+    color: '#3E54E8', 
     horizons: 899,
+    classDesc: 'Ice Giant',
     fact: "Has the strongest winds in the solar system." 
   },
 ]
 
-const PlanetLabel = ({ planet, color, size }) => {
-  const [visible, setVisible] = useState(true)
-  const ref = useRef()
-  const lastVisibleRef = useRef(true)
-
-  useFrame(({ camera }) => {
-    if (ref.current) {
-      const worldPos = new THREE.Vector3()
-      ref.current.getWorldPosition(worldPos)
-      const dist = camera.position.distanceTo(worldPos)
-      // Much larger threshold - basically always show unless very far
-      const isVisible = dist < 300
-      
-      // Only update state if visibility actually changed
-      if (lastVisibleRef.current !== isVisible) {
-        lastVisibleRef.current = isVisible
-        setVisible(isVisible)
-      }
+// Glowing 3D circular line for planetary orbits
+const OrbitLine = ({ radius, color, visible }) => {
+  const points = useMemo(() => {
+    const pts = []
+    const segments = 180
+    for (let i = 0; i <= segments; i++) {
+      const angle = (i / segments) * Math.PI * 2
+      pts.push(new THREE.Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius))
     }
-  })
+    return pts
+  }, [radius])
+
+  if (!visible) return null
+
+  return (
+    <line>
+      <bufferGeometry>
+        <bufferAttribute
+          attach="attributes-position"
+          args={[new Float32Array(points.flatMap(p => [p.x, p.y, p.z])), 3]}
+        />
+      </bufferGeometry>
+      <lineBasicMaterial 
+        color={color} 
+        transparent 
+        opacity={0.22} 
+        linewidth={1.5} 
+        depthWrite={false}
+      />
+    </line>
+  )
+}
+
+// Interactive floating futuristic holographic labels
+const PlanetLabel = ({ planet, color, size, onSelect, visible }) => {
+  const ref = useRef()
+  const [hovered, setHovered] = useState(false)
 
   if (!visible) return null
 
   return (
     <Html 
-      position={[0, size * 2.5, 0]} // Position above the planet
+      position={[0, size * 2.2, 0]} 
       style={{ 
-        pointerEvents: 'none',
-        opacity: visible ? 1 : 0,
-        transition: 'opacity 0.3s',
+        pointerEvents: 'auto',
         transformStyle: 'preserve-3d',
-        willChange: 'transform' // Optimize rendering
+        willChange: 'transform'
       }}
       ref={ref}
       center
       occlude={false}
-      zIndexRange={[16777271, 0]}
-      distanceFactor={15} // Increased for less drastic scaling
-      transform // Always face camera (billboard effect)
+      zIndexRange={[100, 0]}
+      distanceFactor={22}
+      transform
     >
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        width: '240px',
-        transform: 'translate(20px, -50%)' // Offset slightly
-      }}>
-        {/* Connector Line */}
+      <div 
+        onClick={(e) => {
+          e.stopPropagation()
+          onSelect({
+            id: planet.horizons.toString(),
+            name: planet.name,
+            class: planet.name,
+            diameter: planet.diameter,
+            period: planet.period,
+            distance: planet.distance,
+            fact: planet.fact,
+            type: 'planet'
+          })
+        }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          cursor: 'pointer',
+          transform: `scale(${hovered ? 1.05 : 1})`,
+          transition: 'transform 0.2s ease',
+          userSelect: 'none'
+        }}
+      >
+        {/* Holographic line */}
         <div style={{
-          width: '40px',
+          width: '25px',
           height: '1px',
           background: color,
-          marginRight: '10px',
+          opacity: 0.7,
           transformOrigin: 'left',
-          transform: 'rotate(-15deg)'
+          transform: 'rotate(-20deg)',
+          marginRight: '6px'
         }} />
         
-        {/* Card */}
+        {/* Futuristic Minimal Tag */}
         <div style={{
-          background: 'rgba(10, 10, 15, 0.9)',
-          border: `2px solid ${color}`,
-          borderRadius: '10px',
-          padding: '16px',
+          background: 'rgba(10, 12, 22, 0.75)',
+          border: `1.5px solid ${color}`,
+          borderRadius: '6px',
+          padding: '6px 12px',
           color: 'white',
           backdropFilter: 'blur(8px)',
-          boxShadow: `0 0 20px ${color}60`,
-          minWidth: '200px',
-          userSelect: 'none'
+          boxShadow: hovered ? `0 0 16px ${color}90` : `0 0 8px ${color}40`,
+          minWidth: '100px',
+          textAlign: 'left',
+          borderLeft: `4px solid ${color}`
         }}>
-          <h3 style={{ 
-            margin: '0 0 6px 0', 
+          <div style={{ 
             color: color, 
-            fontSize: '18px',
-            fontWeight: 'bold',
+            fontSize: '11px',
+            fontWeight: '900',
             textTransform: 'uppercase',
-            letterSpacing: '1.5px',
-            textShadow: `0 0 10px ${color}`
+            letterSpacing: '1.2px',
+            lineHeight: '1.2'
           }}>
             {planet.name}
-          </h3>
-          <p style={{ 
-            margin: 0, 
-            fontSize: '13px', 
-            lineHeight: '1.5', 
-            color: '#eee',
-            fontWeight: '400'
+          </div>
+          <div style={{ 
+            fontSize: '8px', 
+            color: 'rgba(255,255,255,0.6)',
+            letterSpacing: '0.6px',
+            marginTop: '2px',
+            textTransform: 'uppercase'
           }}>
-            {planet.fact}
-          </p>
+            {planet.classDesc}
+          </div>
         </div>
       </div>
     </Html>
   )
 }
 
-const Planets = ({ onSelect, time }) => {
+const Planets = ({ onSelect, time, showOrbits, showLabels, selectedObject }) => {
   const scale = 10.0 // 1 AU = 10 units
   
+  const earthCloudsRef = useRef()
+  const uranusGroupRef = useRef()
+  const planetMeshRefs = useRef({})
+  
+  // Load all real texture maps (Solar System Scope CC-BY 4.0)
+  const textures = useMemo(() => loadPlanetTextures(), [])
+
+  // Map planet names to their texture
+  const planetTextureMap = useMemo(() => ({
+    Mercury: textures.Mercury,
+    Venus:   textures.Venus,
+    Earth:   textures.Earth,
+    Mars:    textures.Mars,
+    Jupiter: textures.Jupiter,
+    Saturn:  textures.Saturn,
+    Uranus:  textures.Uranus,
+    Neptune: textures.Neptune,
+  }), [textures])
+
+  useFrame((state, delta) => {
+    // Drifting clouds on Earth
+    if (earthCloudsRef.current) {
+      earthCloudsRef.current.rotation.y += delta * 0.015
+    }
+    // Spin Uranus sideways
+    if (uranusGroupRef.current) {
+      uranusGroupRef.current.rotation.x = Math.PI / 2 // Sideways axis
+      uranusGroupRef.current.rotation.y += delta * 0.05
+    }
+    // Self-rotation for all planets
+    Object.values(planetMeshRefs.current).forEach(mesh => {
+      if (mesh) mesh.rotation.y += delta * 0.1
+    })
+  })
+
   return (
     <group>
-      {PLANET_DATA.map((planet, idx) => {
+      {/* Permanent Orbit Lines */}
+      {PLANET_DATA.map(planet => (
+        <OrbitLine 
+          key={`orbit-${planet.name}`} 
+          radius={planet.distance * scale} 
+          color={planet.color} 
+          visible={showOrbits} 
+        />
+      ))}
+
+      {/* Render Planets */}
+      {PLANET_DATA.map((planet) => {
         const angle = (time / planet.period) * Math.PI * 2
         const x = Math.cos(angle) * planet.distance * scale
         const z = Math.sin(angle) * planet.distance * scale
         const y = 0 
         
-        // Improved size calculation for better visibility of all planets
-        // Use cube root scaling for more balanced size representation
-        // Add minimum size to ensure all planets are visible
-        const baseSize = Math.pow(planet.diameter / 1000, 1/3) * 1.2
-        const minSize = 0.8 // Minimum size for visibility
-        const distanceBoost = planet.distance > 10 ? 1.3 : 1.0 // Boost for outer planets
+        // Cube root size scaling for high-end visualization balance
+        const baseSize = Math.pow(planet.diameter / 1000, 1/3) * 1.3
+        const minSize = 1.0 
+        const distanceBoost = planet.distance > 8 ? 1.4 : 1.0 
         const size = Math.max(baseSize * distanceBoost, minSize)
+
+        const mainMap = planetTextureMap[planet.name]
+        const isUranus = planet.name === 'Uranus'
+
+        // Emissive intensity ramps up with distance so outer planets stay visible
+        // Inner planets (< 2AU) get subtle fill, outer planets get strong self-illumination
+        const emissiveIntensity = planet.distance > 8 ? 0.35 : planet.distance > 3 ? 0.2 : 0.08
 
         return (
           <group key={planet.name} position={[x, y, z]}>
-            {/* Planet Sphere - Polished PBR Look */}
-            <mesh 
-              onClick={(e) => {
-                e.stopPropagation()
-                onSelect({
-                  id: planet.horizons.toString(),
-                  name: planet.name,
-                  class: planet.name, // Use planet name as class for correct color
-                  diameter: planet.diameter,
-                  period: planet.period,
-                  distance: planet.distance,
-                  fact: planet.fact,
-                  type: 'planet'
-                })
-              }}
-            >
-              <sphereGeometry args={[size, 64, 64]} />
-              <meshStandardMaterial 
-                color={planet.color}
-                roughness={0.4}
-                metalness={0.1}
-                emissive={planet.color}
-                emissiveIntensity={planet.distance > 10 ? 0.2 : 0.1} // Brighter glow for outer planets
-              />
-            </mesh>
+            {/* Standard textured planet mesh */}
+            {!isUranus ? (
+              <mesh 
+                ref={el => { planetMeshRefs.current[planet.name] = el }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onSelect({
+                    id: planet.horizons.toString(),
+                    name: planet.name,
+                    class: planet.name,
+                    diameter: planet.diameter,
+                    period: planet.period,
+                    distance: planet.distance,
+                    fact: planet.fact,
+                    type: 'planet'
+                  })
+                }}
+              >
+                <sphereGeometry args={[size, 64, 64]} />
+                <meshStandardMaterial 
+                  map={mainMap}
+                  roughness={0.65}
+                  metalness={0.05}
+                  emissive={new THREE.Color(planet.color)}
+                  emissiveIntensity={emissiveIntensity}
+                />
+              </mesh>
+            ) : (
+              // Side-spinning Uranus
+              <group ref={uranusGroupRef}>
+                <mesh 
+                  ref={el => { planetMeshRefs.current[planet.name] = el }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onSelect({
+                      id: planet.horizons.toString(),
+                      name: planet.name,
+                      class: planet.name,
+                      diameter: planet.diameter,
+                      period: planet.period,
+                      distance: planet.distance,
+                      fact: planet.fact,
+                      type: 'planet'
+                    })
+                  }}
+                >
+                  <sphereGeometry args={[size, 64, 64]} />
+                  <meshStandardMaterial 
+                    map={mainMap}
+                    roughness={0.65}
+                    metalness={0.05}
+                    emissive={new THREE.Color(planet.color)}
+                    emissiveIntensity={emissiveIntensity}
+                  />
+                </mesh>
+              </group>
+            )}
+
+            {/* Earth Cloud Layer */}
+            {planet.name === 'Earth' && (
+              <mesh ref={earthCloudsRef} scale={[1.008, 1.008, 1.008]}>
+                <sphereGeometry args={[size, 32, 32]} />
+                <meshStandardMaterial 
+                  map={textures.EarthClouds}
+                  transparent 
+                  opacity={0.4} 
+                  depthWrite={false}
+                  blending={THREE.NormalBlending}
+                />
+              </mesh>
+            )}
             
-            {/* Atmosphere Glow (Fresnel-like) */}
-            <mesh scale={[1.1, 1.1, 1.1]}>
+            {/* Volumetric Fresnel Atmospheric Halo */}
+            <mesh scale={[1.08, 1.08, 1.08]}>
               <sphereGeometry args={[size, 32, 32]} />
               <meshBasicMaterial 
                 color={planet.color} 
                 transparent 
-                opacity={planet.distance > 10 ? 0.25 : 0.15} // More visible glow for outer planets
+                opacity={planet.distance > 8 ? 0.28 : 0.16} 
                 blending={THREE.AdditiveBlending} 
                 side={THREE.BackSide}
+                depthWrite={false}
               />
             </mesh>
 
-            {/* Rings for Saturn & Uranus */}
-            {(planet.name === 'Saturn' || planet.name === 'Uranus') && (
-              <mesh rotation={[Math.PI / 3, 0, 0]}>
-                <ringGeometry args={[size * 1.4, size * 2.2, 64]} />
+            {/* High-Fidelity Photorealistic Ring Systems */}
+            {planet.name === 'Saturn' && (
+              <mesh rotation={[Math.PI / 2.8, 0, 0]}>
+                <ringGeometry args={[size * 1.35, size * 2.3, 64]} />
                 <meshStandardMaterial 
-                  color={planet.color} 
+                  map={textures.SaturnRings} 
                   transparent 
-                  opacity={0.6} 
-                  side={THREE.DoubleSide} 
-                  emissive={planet.color}
-                  emissiveIntensity={0.1}
+                  opacity={0.8} 
+                  side={THREE.DoubleSide}
+                  roughness={0.6}
+                  metalness={0.1}
+                  emissive={new THREE.Color('#EBD797')}
+                  emissiveIntensity={0.15}
                 />
               </mesh>
             )}
 
-            {/* Planet labels removed - info moved to flashcard system */}
+            {planet.name === 'Uranus' && (
+              <mesh rotation={[Math.PI / 1.9, 0, 0]}>
+                <ringGeometry args={[size * 1.5, size * 1.7, 64]} />
+                <meshStandardMaterial 
+                  color={planet.color}
+                  transparent 
+                  opacity={0.45} 
+                  side={THREE.DoubleSide}
+                  roughness={0.8}
+                />
+              </mesh>
+            )}
+
+            {/* Holographic floating labels */}
+            <PlanetLabel 
+              planet={planet} 
+              color={planet.color} 
+              size={size} 
+              onSelect={onSelect}
+              visible={showLabels}
+            />
           </group>
         )
       })}
