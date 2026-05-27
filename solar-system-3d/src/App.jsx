@@ -1,7 +1,7 @@
 import React, { Suspense, useState, useEffect, useRef } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, Stars } from '@react-three/drei'
-import { EffectComposer, Bloom } from '@react-three/postprocessing'
+// EffectComposer/Bloom bypassed — incompatible with current three/fiber versions
 import * as THREE from 'three'
 import SolarSystem from './components/SolarSystem'
 import HUD from './components/HUD'
@@ -142,17 +142,6 @@ function App() {
             selectedObject={selectedAsteroid}
           />
           <Stars radius={400} depth={60} count={quality === 'high' ? 8000 : 2000} factor={6} saturation={0.5} fade speed={1.2} />
-          
-          {quality === 'high' && (
-            <EffectComposer>
-              <Bloom 
-                intensity={0.8}
-                luminanceThreshold={0.6}
-                luminanceSmoothing={0.3}
-                height={300}
-              />
-            </EffectComposer>
-          )}
         </Suspense>
         
         <OrbitControls
