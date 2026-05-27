@@ -1,8 +1,10 @@
-import React, { useRef, useState, useMemo } from 'react'
+import React, { useRef, useState, useMemo, useEffect } from 'react'
 import { Html } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { loadPlanetTextures } from '../utils/textureLoader'
+import { generateNormalMapFromTexture } from '../utils/normalMapGenerator'
+import { AtmosphereShader } from '../utils/AtmosphereShader'
 
 const PLANET_DATA = [
   { 
@@ -222,6 +224,7 @@ const Planets = ({ onSelect, time, showOrbits, showLabels, selectedObject }) => 
   const earthCloudsRef = useRef()
   const uranusGroupRef = useRef()
   const planetMeshRefs = useRef({})
+  const [texturesLoaded, setTexturesLoaded] = useState(false)
   
   // Load all real texture maps (Solar System Scope CC-BY 4.0)
   const textures = useMemo(() => loadPlanetTextures(), [])
@@ -237,6 +240,32 @@ const Planets = ({ onSelect, time, showOrbits, showLabels, selectedObject }) => 
     Uranus:  textures.Uranus,
     Neptune: textures.Neptune,
   }), [textures])
+
+  useEffect(() => {
+    // Wait for the key textures to be fully loaded with image objects
+    const checkInterval = setInterval(() => {
+      if (textures.Mars?.image && textures.Mercury?.image) {
+        setTexturesLoaded(true)
+        clearInterval(checkInterval)
+      }
+    }, 100)
+    return () => clearInterval(checkInterval)
+  }, [textures])
+
+  // Generate procedural normal maps for Mars and Mercury to enhance lighting details
+  const marsNormalMap = useMemo(() => {
+    if (texturesLoaded && textures.Mars?.image) {
+      return generateNormalMapFromTexture(textures.Mars, 2.5)
+    }
+    return null
+  }, [texturesLoaded, textures.Mars])
+
+  const mercuryNormalMap = useMemo(() => {
+    if (texturesLoaded && textures.Mercury?.image) {
+      return generateNormalMapFromTexture(textures.Mercury, 1.8)
+    }
+    return null
+  }, [texturesLoaded, textures.Mercury])
 
   useFrame((state, delta) => {
     // Drifting clouds on Earth
@@ -289,7 +318,7 @@ const Planets = ({ onSelect, time, showOrbits, showLabels, selectedObject }) => 
         return (
           <group key={planet.name} position={[x, y, z]}>
             {/* Standard textured planet mesh */}
-            {!isUranus ? (
+            {planet.name === 'Earth' ? (
               <mesh 
                 ref={el => { planetMeshRefs.current[planet.name] = el }}
                 onClick={(e) => {
@@ -307,15 +336,16 @@ const Planets = ({ onSelect, time, showOrbits, showLabels, selectedObject }) => 
                 }}
               >
                 <sphereGeometry args={[size, 64, 64]} />
-                <meshStandardMaterial 
+                <meshPhongMaterial 
                   map={mainMap}
-                  roughness={0.65}
-                  metalness={0.05}
-                  emissive={new THREE.Color(planet.color)}
-                  emissiveIntensity={emissiveIntensity}
+                  normalMap={textures.EarthNormal}
+                  normalScale={new THREE.Vector2(0.9, 0.9)}
+                  specularMap={textures.EarthSpecular}
+                  specular={new THREE.Color('#333333')}
+                  shininess={25}
                 />
               </mesh>
-            ) : (
+            ) : isUranus ? (
               // Side-spinning Uranus
               <group ref={uranusGroupRef}>
                 <mesh 
@@ -344,6 +374,35 @@ const Planets = ({ onSelect, time, showOrbits, showLabels, selectedObject }) => 
                   />
                 </mesh>
               </group>
+            ) : (
+              // Standard textured planet mesh (Mercury, Venus, Mars, Jupiter, Saturn, Neptune)
+              <mesh 
+                ref={el => { planetMeshRefs.current[planet.name] = el }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onSelect({
+                    id: planet.horizons.toString(),
+                    name: planet.name,
+                    class: planet.name,
+                    diameter: planet.diameter,
+                    period: planet.period,
+                    distance: planet.distance,
+                    fact: planet.fact,
+                    type: 'planet'
+                  })
+                }}
+              >
+                <sphereGeometry args={[size, 64, 64]} />
+                <meshStandardMaterial 
+                  map={mainMap}
+                  normalMap={planet.name === 'Mars' ? marsNormalMap : planet.name === 'Mercury' ? mercuryNormalMap : null}
+                  normalScale={planet.name === 'Mars' ? new THREE.Vector2(1.5, 1.5) : new THREE.Vector2(1.2, 1.2)}
+                  roughness={planet.name === 'Mars' ? 0.8 : planet.name === 'Mercury' ? 0.9 : 0.65}
+                  metalness={0.05}
+                  emissive={new THREE.Color(planet.color)}
+                  emissiveIntensity={emissiveIntensity}
+                />
+              </mesh>
             )}
 
             {/* Earth Cloud Layer */}
@@ -360,18 +419,38 @@ const Planets = ({ onSelect, time, showOrbits, showLabels, selectedObject }) => 
               </mesh>
             )}
             
-            {/* Volumetric Fresnel Atmospheric Halo */}
-            <mesh scale={[1.08, 1.08, 1.08]}>
-              <sphereGeometry args={[size, 32, 32]} />
-              <meshBasicMaterial 
-                color={planet.color} 
-                transparent 
-                opacity={planet.distance > 8 ? 0.28 : 0.16} 
-                blending={THREE.AdditiveBlending} 
-                side={THREE.BackSide}
-                depthWrite={false}
-              />
-            </mesh>
+            {/* Volumetric Rayleigh Scattering Atmosphere Halo */}
+            {['Earth', 'Venus', 'Uranus', 'Neptune'].includes(planet.name) ? (
+              <mesh scale={planet.name === 'Earth' ? [1.09, 1.09, 1.09] : planet.name === 'Venus' ? [1.07, 1.07, 1.07] : [1.14, 1.14, 1.14]}>
+                <sphereGeometry args={[size, 32, 32]} />
+                <shaderMaterial
+                  vertexShader={AtmosphereShader.vertexShader}
+                  fragmentShader={AtmosphereShader.fragmentShader}
+                  uniforms={{
+                    color: { value: new THREE.Color(planet.color) },
+                    coefficient: { value: planet.name === 'Venus' ? 0.72 : 0.62 },
+                    power: { value: planet.name === 'Venus' ? 4.0 : 5.5 }
+                  }}
+                  transparent
+                  blending={THREE.AdditiveBlending}
+                  side={THREE.BackSide}
+                  depthWrite={false}
+                />
+              </mesh>
+            ) : (
+              /* Non-atmosphere basic glow for Mercury, Mars, Jupiter, Saturn */
+              <mesh scale={[1.08, 1.08, 1.08]}>
+                <sphereGeometry args={[size, 32, 32]} />
+                <meshBasicMaterial 
+                  color={planet.color} 
+                  transparent 
+                  opacity={planet.distance > 8 ? 0.28 : 0.16} 
+                  blending={THREE.AdditiveBlending} 
+                  side={THREE.BackSide}
+                  depthWrite={false}
+                />
+              </mesh>
+            )}
 
             {/* High-Fidelity Photorealistic Ring Systems */}
             {planet.name === 'Saturn' && (

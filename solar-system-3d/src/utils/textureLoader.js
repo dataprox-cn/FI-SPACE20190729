@@ -29,6 +29,8 @@ export const loadPlanetTextures = () => ({
   Earth:        loadTexture('/textures/2k_earth_daymap.jpg'),
   EarthNight:   loadTexture('/textures/2k_earth_nightmap.jpg'),
   EarthClouds:  loadTexture('/textures/2k_earth_clouds.jpg'),
+  EarthNormal:  loadTexture('/textures/earth_normal_2048.jpg'),
+  EarthSpecular:loadTexture('/textures/earth_specular_2048.jpg'),
   Mars:         loadTexture('/textures/2k_mars.jpg'),
   Jupiter:      loadTexture('/textures/2k_jupiter.jpg'),
   Saturn:       loadTexture('/textures/2k_saturn.jpg'),
