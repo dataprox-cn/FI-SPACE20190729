@@ -27,7 +27,7 @@ function App() {
   const [activeFilters, setActiveFilters] = useState({})
   
   // Interactive Simulation Controls
-  const [speed, setSpeed] = useState(50) // Default time speed (days/sec relative)
+  const [speed, setSpeed] = useState(10) // Default time speed (days/sec relative) set to 10x
   const [isPaused, setIsPaused] = useState(false)
   const [showOrbits, setShowOrbits] = useState(true)
   const [showLabels, setShowLabels] = useState(true)
