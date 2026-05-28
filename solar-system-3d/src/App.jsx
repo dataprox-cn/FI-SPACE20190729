@@ -1,6 +1,7 @@
 import React, { Suspense, useState, useEffect, useRef } from 'react'
 import { Canvas } from '@react-three/fiber'
-import { OrbitControls, Stars } from '@react-three/drei'
+import { OrbitControls } from '@react-three/drei'
+import TwinklingStars from './components/ui/TwinklingStars'
 // EffectComposer/Bloom bypassed — incompatible with current three/fiber versions
 import * as THREE from 'three'
 import SolarSystem from './components/SolarSystem'
@@ -127,7 +128,7 @@ function App() {
         <color attach="background" args={['#000000']} />
         <ambientLight intensity={0.15} /> {/* Base fill so all planets are visible */}
         <hemisphereLight args={['#334466', '#111122', 0.25]} /> {/* Soft sky/ground fill light */}
-        <pointLight position={[0, 0, 0]} intensity={8} color="#ffddaa" distance={0} decay={0} /> {/* Sun light — illuminates nearby planets strongly */}
+        <pointLight position={[0, 0, 0]} intensity={4.5} color="#ffddaa" distance={0} decay={0} /> {/* Sun light — soft illustrative brightness so textures are fully visible */}
         <spotLight position={[50, 50, 50]} angle={0.5} penumbra={1} intensity={0.6} color="#ffffff" /> {/* Rim lighting */}
         
         <Suspense fallback={null}>
@@ -141,7 +142,7 @@ function App() {
             showLabels={showLabels}
             selectedObject={selectedAsteroid}
           />
-          <Stars radius={400} depth={60} count={quality === 'high' ? 8000 : 2000} factor={6} saturation={0.5} fade speed={1.2} />
+          <TwinklingStars count={quality === 'high' ? 4000 : 1500} sparklingCount={quality === 'high' ? 120 : 40} />
         </Suspense>
         
         <OrbitControls

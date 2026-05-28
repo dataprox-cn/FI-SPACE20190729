@@ -336,17 +336,15 @@ const Planets = ({ onSelect, time, showOrbits, showLabels, selectedObject }) => 
                 }}
               >
                 <sphereGeometry args={[size, 64, 64]} />
-                <meshPhongMaterial 
+                <meshToonMaterial 
                   map={mainMap}
                   normalMap={textures.EarthNormal}
-                  normalScale={new THREE.Vector2(0.9, 0.9)}
-                  specularMap={textures.EarthSpecular}
-                  specular={new THREE.Color('#333333')}
-                  shininess={25}
+                  normalScale={new THREE.Vector2(1.2, 1.2)}
+                  color="#ffffff"
                 />
               </mesh>
             ) : isUranus ? (
-              // Side-spinning Uranus
+              // Side-spinning Uranus (98-degree axial tilt)
               <group ref={uranusGroupRef}>
                 <mesh 
                   ref={el => { planetMeshRefs.current[planet.name] = el }}
@@ -365,17 +363,26 @@ const Planets = ({ onSelect, time, showOrbits, showLabels, selectedObject }) => 
                   }}
                 >
                   <sphereGeometry args={[size, 64, 64]} />
-                  <meshStandardMaterial 
+                  <meshToonMaterial 
                     map={mainMap}
-                    roughness={0.65}
-                    metalness={0.05}
-                    emissive={new THREE.Color(planet.color)}
-                    emissiveIntensity={emissiveIntensity}
+                    color="#ffffff"
+                  />
+                </mesh>
+
+                {/* Uranus Vertical / Sideways Ring - rendered inside the sideways coordinate group */}
+                <mesh rotation={[Math.PI / 2, 0, 0]}>
+                  <ringGeometry args={[size * 1.45, size * 1.65, 64]} />
+                  <meshBasicMaterial 
+                    color={planet.color}
+                    transparent 
+                    opacity={0.65} 
+                    side={THREE.DoubleSide}
+                    depthWrite={false}
                   />
                 </mesh>
               </group>
             ) : (
-              // Standard textured planet mesh (Mercury, Venus, Mars, Jupiter, Saturn, Neptune)
+              // Standard illustrative planet mesh (Mercury, Venus, Mars, Jupiter, Saturn, Neptune)
               <mesh 
                 ref={el => { planetMeshRefs.current[planet.name] = el }}
                 onClick={(e) => {
@@ -393,14 +400,11 @@ const Planets = ({ onSelect, time, showOrbits, showLabels, selectedObject }) => 
                 }}
               >
                 <sphereGeometry args={[size, 64, 64]} />
-                <meshStandardMaterial 
+                <meshToonMaterial 
                   map={mainMap}
                   normalMap={planet.name === 'Mars' ? marsNormalMap : planet.name === 'Mercury' ? mercuryNormalMap : null}
-                  normalScale={planet.name === 'Mars' ? new THREE.Vector2(1.5, 1.5) : new THREE.Vector2(1.2, 1.2)}
-                  roughness={planet.name === 'Mars' ? 0.8 : planet.name === 'Mercury' ? 0.9 : 0.65}
-                  metalness={0.05}
-                  emissive={new THREE.Color(planet.color)}
-                  emissiveIntensity={emissiveIntensity}
+                  normalScale={planet.name === 'Mars' ? new THREE.Vector2(1.8, 1.8) : new THREE.Vector2(1.4, 1.4)}
+                  color="#ffffff"
                 />
               </mesh>
             )}
@@ -412,7 +416,7 @@ const Planets = ({ onSelect, time, showOrbits, showLabels, selectedObject }) => 
                 <meshStandardMaterial 
                   map={textures.EarthClouds}
                   transparent 
-                  opacity={0.4} 
+                  opacity={0.45} 
                   depthWrite={false}
                   blending={THREE.NormalBlending}
                 />
@@ -456,31 +460,17 @@ const Planets = ({ onSelect, time, showOrbits, showLabels, selectedObject }) => 
             {planet.name === 'Saturn' && (
               <mesh rotation={[Math.PI / 2.8, 0, 0]}>
                 <ringGeometry args={[size * 1.35, size * 2.3, 64]} />
-                <meshStandardMaterial 
+                <meshToonMaterial 
                   map={textures.SaturnRings} 
                   transparent 
-                  opacity={0.8} 
+                  opacity={0.88} 
                   side={THREE.DoubleSide}
-                  roughness={0.6}
-                  metalness={0.1}
-                  emissive={new THREE.Color('#EBD797')}
-                  emissiveIntensity={0.15}
+                  color="#ffffff"
                 />
               </mesh>
             )}
 
-            {planet.name === 'Uranus' && (
-              <mesh rotation={[Math.PI / 1.9, 0, 0]}>
-                <ringGeometry args={[size * 1.5, size * 1.7, 64]} />
-                <meshStandardMaterial 
-                  color={planet.color}
-                  transparent 
-                  opacity={0.45} 
-                  side={THREE.DoubleSide}
-                  roughness={0.8}
-                />
-              </mesh>
-            )}
+            {/* Redundant Uranus ring node removed (moved inside uranusGroupRef) */}
 
             {/* Holographic floating labels */}
             <PlanetLabel 

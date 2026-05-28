@@ -7,6 +7,7 @@ import Planets from './Planets'
 import { loadAsteroidData } from '../utils/dataLoader'
 import { getAsteroidPosition, getOrbitPoints } from '../utils/orbitalMath'
 import { createSunTexture } from '../utils/textureGenerator'
+import { loadPlanetTextures } from '../utils/textureLoader'
 import { ASTEROID_COLORS } from '../utils/colors'
 
 // Renders the elliptical glowing path for selected asteroids
@@ -138,7 +139,8 @@ const SolarSystem = ({ onSelect, searchResults, activeFilters, speed, isPaused, 
   const accumulatedTimeRef = useRef(0)
   const sunRef = useRef()
 
-  const sunTexture = useMemo(() => createSunTexture(), [])
+  const textures = useMemo(() => loadPlanetTextures(), [])
+  const sunTexture = textures.Sun
 
   useEffect(() => {
     loadAsteroidData()
@@ -261,7 +263,7 @@ const SolarSystem = ({ onSelect, searchResults, activeFilters, speed, isPaused, 
 
   return (
     <group>
-      {/* Central Sun Marker - Highly Realistic Procedural Design */}
+      {/* Central Sun Marker - Premium Detailed NASA Texture Design */}
       <group position={[0, 0, 0]}>
         {/* Textured sun sphere */}
         <mesh ref={sunRef}>
