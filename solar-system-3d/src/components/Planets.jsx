@@ -1,10 +1,89 @@
 import React, { useRef, useState, useMemo, useEffect } from 'react'
 import { Html } from '@react-three/drei'
-import { useFrame } from '@react-three/fiber'
+import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { loadPlanetTextures } from '../utils/textureLoader'
 import { generateNormalMapFromTexture } from '../utils/normalMapGenerator'
 import { AtmosphereShader } from '../utils/AtmosphereShader'
+
+/* ------------------------------------------------------------------
+   Earth Day/Night Shader
+   - Lambert-based day/night split
+   - Warm golden terminator band
+   - Sodium-yellow city lights on dark side
+   - Fresnel blue atmospheric limb haze
+   ------------------------------------------------------------------ */
+const EARTH_VERT = /* glsl */`
+  varying vec3 vWorldNormal;
+  varying vec3 vWorldPos;
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    vWorldNormal = normalize(mat3(modelMatrix) * normal);
+    vec4 wp = modelMatrix * vec4(position, 1.0);
+    vWorldPos = wp.xyz;
+    gl_Position = projectionMatrix * viewMatrix * wp;
+  }
+`
+
+const EARTH_FRAG = /* glsl */`
+  uniform vec3 uSunPos;
+  uniform sampler2D uDayMap;
+  uniform sampler2D uNightMap;
+  varying vec3 vWorldNormal;
+  varying vec3 vWorldPos;
+  varying vec2 vUv;
+
+  void main() {
+    vec3 n = normalize(vWorldNormal);
+    vec3 toSun = normalize(uSunPos - vWorldPos);
+    vec3 toCam = normalize(cameraPosition - vWorldPos);
+    float lambert = dot(n, toSun);
+
+    // Day side
+    vec3 day = texture2D(uDayMap, vUv).rgb;
+    float diff = pow(clamp(lambert, 0.0, 1.0), 0.9);
+    vec3 col = day * (0.012 + diff * 1.5);
+
+    // Warm sunset/terminator band
+    float term = 1.0 - smoothstep(0.0, 0.35, abs(lambert - 0.05));
+    col *= mix(vec3(1.0), vec3(1.12, 0.86, 0.68), term * 0.55);
+
+    // City lights on the night side
+    vec3 nightTex = texture2D(uNightMap, vUv).rgb;
+    float night = 1.0 - smoothstep(-0.12, 0.1, lambert);
+    vec3 lights = pow(nightTex, vec3(1.35)) * vec3(1.0, 0.82, 0.58);
+    col += lights * night * 2.0;
+
+    // Fresnel blue atmospheric haze at the limb (day side only)
+    float fres = pow(1.0 - max(dot(n, toCam), 0.0), 2.4);
+    col += vec3(0.32, 0.56, 1.0) * fres * clamp(lambert, 0.0, 1.0) * 0.35;
+
+    gl_FragColor = vec4(col, 1.0);
+  }
+`
+
+const CLOUD_VERT = EARTH_VERT
+
+const CLOUD_FRAG = /* glsl */`
+  uniform vec3 uSunPos;
+  uniform sampler2D uCloudMap;
+  varying vec3 vWorldNormal;
+  varying vec3 vWorldPos;
+  varying vec2 vUv;
+
+  void main() {
+    vec3 n = normalize(vWorldNormal);
+    vec3 toSun = normalize(uSunPos - vWorldPos);
+    float lambert = dot(n, toSun);
+    float cloud = texture2D(uCloudMap, vUv).r;
+    float lit = 0.03 + pow(clamp(lambert, 0.0, 1.0), 0.85) * 1.35;
+    // Warm clouds near the terminator
+    float term = 1.0 - smoothstep(0.0, 0.3, abs(lambert - 0.05));
+    vec3 col = vec3(lit) * mix(vec3(1.0), vec3(1.1, 0.85, 0.7), term * 0.5);
+    gl_FragColor = vec4(col, cloud * 0.92);
+  }
+`
 
 const PLANET_DATA = [
   { 
@@ -218,6 +297,8 @@ const PlanetLabel = ({ planet, color, size, onSelect, visible }) => {
   )
 }
 
+const SUN_WORLD_POS = new THREE.Vector3(0, 0, 0) // Sun is always at scene origin
+
 const Planets = ({ onSelect, time, showOrbits, showLabels, selectedObject }) => {
   const scale = 10.0 // 1 AU = 10 units
   
@@ -336,11 +417,14 @@ const Planets = ({ onSelect, time, showOrbits, showLabels, selectedObject }) => 
                 }}
               >
                 <sphereGeometry args={[size, 64, 64]} />
-                <meshToonMaterial 
-                  map={mainMap}
-                  normalMap={textures.EarthNormal}
-                  normalScale={new THREE.Vector2(1.2, 1.2)}
-                  color="#ffffff"
+                <shaderMaterial
+                  vertexShader={EARTH_VERT}
+                  fragmentShader={EARTH_FRAG}
+                  uniforms={{
+                    uSunPos: { value: SUN_WORLD_POS },
+                    uDayMap:   { value: textures.Earth },
+                    uNightMap: { value: textures.EarthNight },
+                  }}
                 />
               </mesh>
             ) : isUranus ? (
@@ -409,16 +493,19 @@ const Planets = ({ onSelect, time, showOrbits, showLabels, selectedObject }) => 
               </mesh>
             )}
 
-            {/* Earth Cloud Layer */}
+            {/* Earth Cloud Layer — lit by the same Sun direction */}
             {planet.name === 'Earth' && (
               <mesh ref={earthCloudsRef} scale={[1.008, 1.008, 1.008]}>
                 <sphereGeometry args={[size, 32, 32]} />
-                <meshStandardMaterial 
-                  map={textures.EarthClouds}
-                  transparent 
-                  opacity={0.45} 
+                <shaderMaterial
+                  vertexShader={CLOUD_VERT}
+                  fragmentShader={CLOUD_FRAG}
+                  uniforms={{
+                    uSunPos:   { value: SUN_WORLD_POS },
+                    uCloudMap: { value: textures.EarthClouds },
+                  }}
+                  transparent
                   depthWrite={false}
-                  blending={THREE.NormalBlending}
                 />
               </mesh>
             )}
