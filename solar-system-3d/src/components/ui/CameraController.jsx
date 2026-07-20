@@ -25,7 +25,7 @@ const CameraController = ({ selectedObject, controlsRef, speed, isPaused }) => {
   // Cache variables for smooth lerping
   const startCameraPosRef = useRef(new THREE.Vector3())
   const startTargetPosRef = useRef(new THREE.Vector3())
-  const idealCameraOffsetRef = useRef(new THREE.Vector3(50, 50, 50))
+  const idealCameraOffsetRef = useRef(new THREE.Vector3(0, 320, 480))
 
   useEffect(() => {
     // When selected object changes, trigger cinematic flight transition
@@ -41,8 +41,12 @@ const CameraController = ({ selectedObject, controlsRef, speed, isPaused }) => {
         startTargetPosRef.current.copy(controlsRef.current.target)
         
         // Calculate appropriate viewing offset based on object physical size
-        const targetSize = selectedObject ? (selectedObject.type === 'planet' ? 24 : 12) : 100
-        idealCameraOffsetRef.current.set(targetSize, targetSize * 0.7, targetSize)
+        if (!selectedObject) {
+          idealCameraOffsetRef.current.set(0, 320, 480)
+        } else {
+          const targetSize = selectedObject.type === 'planet' ? 24 : 12
+          idealCameraOffsetRef.current.set(targetSize, targetSize * 0.7, targetSize)
+        }
       }
     }
   }, [selectedObject, camera, controlsRef])

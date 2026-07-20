@@ -10,7 +10,7 @@ const AudioPlayer = () => {
   const audioRef = useRef(null)
 
   useEffect(() => {
-    const audio = new Audio('/Galactic_Drift.mp3')
+    const audio = new Audio('/Galactic_Drift_v2.mp3')
     audio.loop = true
     audio.volume = volume
     audio.preload = 'auto'

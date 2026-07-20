@@ -10,6 +10,22 @@ import { createSunTexture } from '../utils/textureGenerator'
 import { loadPlanetTextures } from '../utils/textureLoader'
 import { ASTEROID_COLORS } from '../utils/colors'
 
+// Helper to format asteroid names nicely e.g. "1Ceres" -> "(1) Ceres", "65803Didymos1996GT" -> "(65803) Didymos"
+const formatAsteroidName = (raw, id) => {
+  if (!raw) return `Asteroid ${id || ''}`
+  const match = raw.match(/^(\d+)([A-Z][a-z\sA-Z0-9'-]+)/)
+  if (match) {
+    const num = match[1]
+    const rest = match[2]
+    const subMatch = rest.match(/^([A-Za-z]+)(\d{4}[A-Z]{1,2}\d*)?$/)
+    if (subMatch) {
+      return `(${num}) ${subMatch[1]}`
+    }
+    return `(${num}) ${rest}`
+  }
+  return raw
+}
+
 // Renders the elliptical glowing path for selected asteroids
 const SelectedOrbit = ({ orbit, color }) => {
   const points = useMemo(() => {
@@ -105,7 +121,7 @@ const InteractionHandler = ({ data, count, meta, onSelect, timeRef }) => {
         // Construct info object with full orbit elements
         const info = {
           id: meta.ids[closestId],
-          name: meta.names[closestId] || `Asteroid ${meta.ids[closestId]}`,
+          name: formatAsteroidName(meta.names[closestId], meta.ids[closestId]),
           class: meta.classes[Math.round(data[closestId*9 + 8])],
           diameter: data[closestId*9 + 7],
           type: 'asteroid',
@@ -162,93 +178,111 @@ const SolarSystem = ({ onSelect, searchResults, activeFilters, speed, isPaused, 
     setTime(accumulatedTimeRef.current)
   })
 
+  // Helper to select an asteroid by dataset index
+  const selectAsteroidAtIndex = (i) => {
+    if (!asteroidData) return
+    const offset = i * 9
+    const e = asteroidData.data[offset]
+    const q_val = asteroidData.data[offset + 1]
+    const a = q_val / (1.0 - e)
+    const period = Math.sqrt(Math.pow(a, 3)) * 365.25
+
+    const orbit = {
+      e: asteroidData.data[offset],
+      q: asteroidData.data[offset + 1],
+      i: asteroidData.data[offset + 2],
+      om: asteroidData.data[offset + 3],
+      w: asteroidData.data[offset + 4],
+      ma: asteroidData.data[offset + 5],
+      epoch: asteroidData.data[offset + 6]
+    }
+
+    const info = {
+      id: asteroidData.meta.ids[i],
+      name: formatAsteroidName(asteroidData.meta.names[i], asteroidData.meta.ids[i]),
+      class: asteroidData.meta.classes[Math.round(asteroidData.data[offset + 8])],
+      diameter: asteroidData.data[offset + 7],
+      type: 'asteroid',
+      period: period,
+      orbit: orbit
+    }
+
+    const currentSimTime = accumulatedTimeRef.current
+    const pos = getAsteroidPosition(orbit, currentSimTime)
+    info.distance = Math.sqrt(pos.x*pos.x + pos.y*pos.y + pos.z*pos.z)
+
+    onSelect(info)
+  }
+
   // Handle asteroid searches (only when searchResults changes)
   useEffect(() => {
-    if (!asteroidData || !searchResults.length) return;
+    if (!asteroidData || !searchResults || !searchResults.length) return;
 
     const asteroidResult = searchResults.find(result => result.type === 'asteroid');
     if (!asteroidResult || !asteroidResult.query) return;
 
-    const query = asteroidResult.query;
-    const q = query.toLowerCase().trim();
+    const rawQuery = asteroidResult.query;
+    const q = rawQuery.toLowerCase().trim();
+    if (!q) return;
 
-    // Search by asteroid ID (numeric)
-    if (/^\d+$/.test(query)) {
-      const idMatch = asteroidData.meta.ids.findIndex(id => id.toString() === query);
-      if (idMatch !== -1) {
-        const offset = idMatch * 9;
-        const e = asteroidData.data[offset];
-        const q_val = asteroidData.data[offset + 1];
-        const a = q_val / (1.0 - e);
-        const period = Math.sqrt(Math.pow(a, 3)) * 365.25;
+    const cleanQuery = q.replace(/[^a-z0-9]/g, '');
+    const textOnly = q.replace(/[^a-z]/g, '');
+    const numbers = q.match(/\d+/g) || [];
 
-        const orbit = {
-          e: asteroidData.data[offset],
-          q: asteroidData.data[offset + 1],
-          i: asteroidData.data[offset + 2],
-          om: asteroidData.data[offset + 3],
-          w: asteroidData.data[offset + 4],
-          ma: asteroidData.data[offset + 5],
-          epoch: asteroidData.data[offset + 6]
-        };
-
-        const info = {
-          id: asteroidData.meta.ids[idMatch],
-          name: asteroidData.meta.names[idMatch] || `Asteroid ${asteroidData.meta.ids[idMatch]}`,
-          class: asteroidData.meta.classes[Math.round(asteroidData.data[offset + 8])],
-          diameter: asteroidData.data[offset + 7],
-          type: 'asteroid',
-          period: period,
-          orbit: orbit
-        };
-
-        const pos = getAsteroidPosition(orbit, time);
-        info.distance = Math.sqrt(pos.x*pos.x + pos.y*pos.y + pos.z*pos.z);
-
-        onSelect(info);
-        return;
-      }
-    }
-
-    // Search by asteroid class
-    const classMatch = ['APO', 'MBA', 'ATE', 'TNO', 'CEN'].find(cls => cls.toLowerCase() === q);
+    // 1. Search by orbital class abbreviation (e.g., MBA, APO, TNO, CEN, etc.)
+    const classMatch = ['APO', 'MBA', 'ATE', 'TNO', 'CEN', 'AMO', 'IMB', 'OMB', 'MCA', 'GRK', 'TJN', 'HTC', 'JFC', 'COM'].find(cls => cls.toLowerCase() === q);
     if (classMatch) {
       for (let i = 0; i < asteroidData.count; i++) {
         const asteroidClass = asteroidData.meta.classes[Math.round(asteroidData.data[i*9 + 8])];
         if (asteroidClass === classMatch) {
-          const offset = i * 9;
-          const e = asteroidData.data[offset];
-          const q_val = asteroidData.data[offset + 1];
-          const a = q_val / (1.0 - e);
-          const period = Math.sqrt(Math.pow(a, 3)) * 365.25;
-
-          const orbit = {
-            e: asteroidData.data[offset],
-            q: asteroidData.data[offset + 1],
-            i: asteroidData.data[offset + 2],
-            om: asteroidData.data[offset + 3],
-            w: asteroidData.data[offset + 4],
-            ma: asteroidData.data[offset + 5],
-            epoch: asteroidData.data[offset + 6]
-          };
-
-          const info = {
-            id: asteroidData.meta.ids[i],
-            name: asteroidData.meta.names[i] || `Asteroid ${asteroidData.meta.ids[i]}`,
-            class: asteroidClass,
-            diameter: asteroidData.data[offset + 7],
-            type: 'asteroid',
-            period: period,
-            orbit: orbit
-          };
-
-          const pos = getAsteroidPosition(orbit, time);
-          info.distance = Math.sqrt(pos.x*pos.x + pos.y*pos.y + pos.z*pos.z);
-
-          onSelect(info);
-          break;
+          selectAsteroidAtIndex(i);
+          return;
         }
       }
+    }
+
+    let bestIndex = -1;
+    let bestScore = -1;
+
+    for (let i = 0; i < asteroidData.count; i++) {
+      const id = asteroidData.meta.ids[i].toString();
+      const name = asteroidData.meta.names[i] || '';
+      const nameLower = name.toLowerCase();
+      const nameClean = nameLower.replace(/[^a-z0-9]/g, '');
+      let score = 0;
+
+      // A. Exact ID match (e.g. '2000001', '2065803') or stripped ID match (e.g. '1' -> '2000001', '65803' -> '2065803')
+      if (id === q || id.slice(2).replace(/^0+/, '') === q || id === '20' + q.padStart(5, '0')) {
+        score = 100;
+      }
+      // B. Name contains text query (e.g. 'ceres' in '1Ceres', 'didymos' in '65803Didymos1996GT')
+      else if (textOnly && textOnly.length >= 2 && nameLower.includes(textOnly)) {
+        if (nameClean.startsWith(textOnly) || nameLower.includes(textOnly)) {
+          score = 90;
+        } else {
+          score = 80;
+        }
+      }
+      // C. Number in query matches asteroid designation/ID (e.g. '1' in '1Ceres', '65803' in '65803Didymos')
+      else if (numbers.length > 0) {
+        for (const num of numbers) {
+          const numRegex = new RegExp('^' + num + '[a-z]|\\b' + num + '\\b|^' + num);
+          if (numRegex.test(nameLower) || id.endsWith(num) || id.slice(2).replace(/^0+/, '') === num) {
+            score = 70;
+            break;
+          }
+        }
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestIndex = i;
+        if (score === 100) break; // Exact match found
+      }
+    }
+
+    if (bestIndex !== -1 && bestScore > 0) {
+      selectAsteroidAtIndex(bestIndex);
     }
   }, [searchResults, asteroidData, onSelect])
 

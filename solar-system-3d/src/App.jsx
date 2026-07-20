@@ -45,14 +45,13 @@ function App() {
 
   // Search functionality
   const handleSearch = (query) => {
-    if (!query.trim()) {
+    if (!query || !query.trim()) {
       setSearchResults([]);
       return;
     }
 
     const q = query.toLowerCase().trim();
     const results = [];
-    let foundMatch = false;
 
     // 1. Search planets first
     const planetMatches = PLANET_DATA.filter(planet =>
@@ -72,25 +71,19 @@ function App() {
           position: calculatePlanetPosition(planet, 0)
         });
       });
-      foundMatch = true;
     }
 
-    // 2. For asteroid searches, create a placeholder result that will be processed by SolarSystem
-    const isNumeric = /^\d+$/.test(query.trim());
-    const isClass = ['apo', 'mba', 'ate', 'tno', 'cen'].includes(q);
-
-    if (!foundMatch && (isNumeric || isClass)) {
-      results.push({
-        type: 'asteroid',
-        query: query.trim()
-      });
-    }
+    // 2. Always pass asteroid search query so SolarSystem can search the 18,000 asteroid dataset
+    results.push({
+      type: 'asteroid',
+      query: query.trim()
+    });
 
     setSearchResults(results);
 
-    // If we found planet results, focus on the first one and show details
-    if (results.length > 0 && results[0].type === 'planet') {
-      setSelectedAsteroid(results[0]); // Show planet details in the panel
+    // If we found planet results, focus on the planet result first
+    if (planetMatches.length > 0) {
+      setSelectedAsteroid(results[0]);
     }
   };
 
@@ -115,7 +108,7 @@ function App() {
   return (
     <>
       <Canvas 
-        camera={{ position: [0, 120, 120], fov: 50, far: 1000, near: 0.1 }}
+        camera={{ position: [0, 320, 480], fov: 50, far: 2000, near: 0.1 }}
         dpr={quality === 'high' ? [1, 2] : [0.75, 1.5]} // Dynamic pixel ratio
         gl={{ 
           antialias: quality === 'high',
@@ -152,7 +145,7 @@ function App() {
         <OrbitControls
           ref={controlsRef}
           minDistance={5}
-          maxDistance={800}
+          maxDistance={1200}
           enablePan={true}
           enableZoom={true}
           enableRotate={true}
