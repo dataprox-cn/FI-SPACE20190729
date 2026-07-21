@@ -30,7 +30,7 @@ function App() {
   const [speed, setSpeed] = useState(10) // Default time speed (days/sec relative) set to 10x
   const [isPaused, setIsPaused] = useState(false)
   const [showOrbits, setShowOrbits] = useState(true)
-  const [showLabels, setShowLabels] = useState(true)
+  const [showLabels, setShowLabels] = useState(false)
 
   const controlsRef = useRef()
 

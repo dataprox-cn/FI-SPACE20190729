@@ -91,7 +91,7 @@ const AudioPlayer = () => {
       title="Music"
       style={{
         position: 'absolute',
-        bottom: '210px',
+        bottom: '225px',
         left: '20px',
         width: '240px',
         zIndex: 10

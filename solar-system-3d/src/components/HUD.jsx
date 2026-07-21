@@ -74,7 +74,7 @@ const HUD = ({
       {/* Quick Visual Settings Controls */}
       <div style={{ 
         position: 'absolute', 
-        bottom: '80px', 
+        bottom: '105px', 
         left: '20px', 
         zIndex: 10,
         display: 'flex',
